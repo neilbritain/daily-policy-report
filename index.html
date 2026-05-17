@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>政策日报 - 数据和信息化政策每日速览</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px 20px;
+            text-align: center;
+        }
+
+        header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+
+        header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+
+        .date-info {
+            text-align: center;
+            padding: 20px;
+            background: #f8f9fa;
+            border-bottom: 2px solid #667eea;
+        }
+
+        .date-info span {
+            font-size: 1.2em;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        main {
+            padding: 40px 20px;
+        }
+
+        .report-section {
+            margin-bottom: 40px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-left: 5px solid #667eea;
+            border-radius: 5px;
+        }
+
+        .report-section h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5em;
+        }
+
+        .policy-item {
+            background: white;
+            padding: 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border-left: 3px solid #764ba2;
+        }
+
+        .policy-item h3 {
+            color: #333;
+            margin-bottom: 8px;
+        }
+
+        .policy-meta {
+            color: #666;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+
+        .policy-meta span {
+            margin-right: 15px;
+        }
+
+        .policy-summary {
+            color: #555;
+            line-height: 1.6;
+        }
+
+        .download-section {
+            text-align: center;
+            padding: 30px;
+            background: #f0f4ff;
+            border-radius: 10px;
+            margin: 30px 0;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 12px 30px;
+            background: #667eea;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+            transition: background 0.3s;
+            margin: 10px 10px 10px 0;
+        }
+
+        .btn:hover {
+            background: #764ba2;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+
+        footer {
+            background: #f8f9fa;
+            padding: 20px;
+            text-align: center;
+            color: #666;
+            border-top: 1px solid #ddd;
+        }
+
+        .update-time {
+            color: #999;
+            font-size: 0.9em;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 政策日报</h1>
+            <p>数据 • 算力 • 信息化 政策速览</p>
+        </header>
+
+        <div class="date-info">
+            <span id="currentDate">加载中...</span>
+        </div>
+
+        <main id="mainContent">
+            <div class="loading">
+                <p>正在加载最新报告...</p>
+            </div>
+        </main>
+
+        <div class="download-section">
+            <h3>📥 下载完整报告</h3>
+            <p style="margin: 15px 0; color: #666;">
+                <a href="reports/latest.html" class="btn">📄 查看最新报告</a>
+                <a href="reports/" class="btn">📁 所有报告</a>
+            </p>
+        </div>
+
+        <footer>
+            <p>每天早上 6:00 自动更新</p>
+            <p class="update-time" id="updateTime">最后更新：加载中...</p>
+            <p style="margin-top: 15px; color: #999; font-size: 0.9em;">
+                由 <strong>daily-policy-report</strong> 提供 |
+                <a href="https://github.com/你的用户名/daily-policy-report" style="color: #667eea;">GitHub 源码</a>
+            </p>
+        </footer>
+    </div>
+
+    <script>
+        // 加载并显示最新报告
+        async function loadLatestReport() {
+            try {
+                const response = await fetch('reports/latest.json');
+                if (!response.ok) throw new Error('无法加载报告');
+
+                const data = await response.json();
+                displayReport(data);
+            } catch (error) {
+                document.getElementById('mainContent').innerHTML =
+                    '<div class="no-data">暂无报告数据。<br/>系统每天早上 6:00 自动生成报告。</div>';
+            }
+        }
+
+        function displayReport(data) {
+            const html = `
+                <div class="report-section">
+                    <h2>📌 过去 24 小时的关键政策</h2>
+                    ${(data.policies_24h || []).map(p => `
+                        <div class="policy-item">
+                            <h3>${p.title}</h3>
+                            <div class="policy-meta">
+                                <span>🏛️ ${p.institution}</span>
+                                <span>📅 ${p.date}</span>
+                            </div>
+                            <div class="policy-summary">${p.summary}</div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="report-section">
+                    <h2>📊 过去一个月的主要政策动向</h2>
+                    ${(data.policies_1month || []).map(p => `
+                        <div class="policy-item">
+                            <h3>${p.title}</h3>
+                            <div class="policy-meta">
+                                <span>🏛️ ${p.institution}</span>
+                                <span>📅 ${p.date}</span>
+                            </div>
+                            <div class="policy-summary">${p.summary}</div>
+                        </div>
+                    `).join('')}
+                </div>
+
+                <div class="report-section">
+                    <h2>📈 未来趋势判断</h2>
+                    <div style="color: #555; line-height: 1.8;">
+                        ${data.trends || '暂无趋势分析'}
+                    </div>
+                </div>
+            `;
+            document.getElementById('mainContent').innerHTML = html;
+        }
+
+        function updateDateTime() {
+            const now = new Date();
+            const dateStr = now.toLocaleDateString('zh-CN', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit'
+            });
+            const timeStr = now.toLocaleTimeString('zh-CN', {
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+
+            document.getElementById('currentDate').textContent = `${dateStr}`;
+            document.getElementById('updateTime').textContent = `最后更新：${dateStr} ${timeStr}`;
+        }
+
+        // 初始化
+        updateDateTime();
+        loadLatestReport();
+        setInterval(updateDateTime, 1000);
+    </script>
+</body>
+</html>
