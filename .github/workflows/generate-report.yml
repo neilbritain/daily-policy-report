@@ -50,11 +50,14 @@ jobs:
           cp -r dist public/skills 2>/dev/null || true
           ls -la public/
 
-      - name: 部署到 GitHub Pages
-        uses: peaceiris/actions-gh-pages@v4
+      - name: 上传 Pages 构件
+        uses: actions/upload-pages-artifact@v2
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
+          path: ./public
+
+      - name: 部署到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
 
       - name: 生成发布摘要
         run: |
