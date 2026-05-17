@@ -45,14 +45,6 @@ jobs:
           cp -r dist public/skills 2>/dev/null || true
           ls -la public/
 
-      - name: 提交和推送变更
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action Bot"
-          git add -A
-          git commit -m "更新政策报告和Skill包 - $(date +'%Y-%m-%d %H:%M:%S')" || echo "没有新的变更"
-          git push
-
       - name: 部署到 GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
