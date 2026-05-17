@@ -46,7 +46,7 @@ def create_report_content():
         ],
         "policies_1month": [
             {
-                "title": ""数据要素×"计划持续推进",
+                "title": "数据要素×计划持续推进",
                 "institution": "国家数据局、发改委",
                 "date": (today - timedelta(days=15)).strftime("%Y-%m-%d"),
                 "summary": "推动30余项数据领域国家标准发布，建立数据质量评估体系，推进数据要素市场化。"
