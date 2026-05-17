@@ -51,11 +51,10 @@ jobs:
           ls -la public/
 
       - name: 部署到 GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
+        uses: peaceiris/actions-gh-pages@v4
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./public
-          cname: # 如果使用自定义域名，修改为 policy-report.com
 
       - name: 生成发布摘要
         run: |
