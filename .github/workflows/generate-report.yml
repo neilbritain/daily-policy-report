@@ -51,13 +51,13 @@ jobs:
           ls -la public/
 
       - name: 上传 Pages 构件
-        uses: actions/upload-pages-artifact@v2
+        uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
 
       - name: 部署到 GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v2
+        uses: actions/deploy-pages@v4
 
       - name: 生成发布摘要
         run: |
