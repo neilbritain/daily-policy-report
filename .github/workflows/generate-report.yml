@@ -26,21 +26,16 @@ jobs:
         run: |
           pip install requests beautifulsoup4 python-dateutil python-docx
 
-      - name: 调试 - 显示脚本内容
-        run: |
-          echo "=== 检查 generate_report.py 第40-55行 ==="
-          sed -n '40,55p' scripts/generate_report.py
-
       - name: 生成 HTML 报告
-        run: python scripts/generate_report.py || echo "报告生成完成或跳过"
+        run: python scripts/generate_report.py
 
       - name: 生成 Word 报告
-        run: python scripts/generate_word_report.py || echo "Word 报告生成完成或跳过"
+        run: python scripts/generate_word_report.py
 
       - name: 打包 Skill
         run: |
           mkdir -p dist
-          python scripts/package_skill.py || echo "Skill 打包完成或跳过"
+          python scripts/package_skill.py
 
       - name: 准备网站文件
         run: |
