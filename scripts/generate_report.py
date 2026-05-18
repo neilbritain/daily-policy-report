@@ -70,13 +70,11 @@ def render_policies(policies):
     for p in policies:
         html += f"""
         <div class="policy">
-            <h3>{p['title']}</h3>
-            <div class="policy-meta">
-                <span class="doc-number">文号：{p.get('doc_number', '暂无')}</span><br/>
-                <span>发文机关：{p['institution']}</span><br/>
-                <span>发文日期：{p['date']}</span>
-            </div>
-            <div class="policy-summary">{p['summary']}</div>
+            <p class="policy-title">《{p['title']}》</p>
+            <p class="policy-meta">【文号】{p.get('doc_number', '暂无')}</p>
+            <p class="policy-meta">【发文机关】{p['institution']}</p>
+            <p class="policy-meta">【发文日期】{p['date']}</p>
+            <p class="policy-summary">{p['summary']}</p>
         </div>"""
     return html
 
@@ -86,55 +84,129 @@ def save_reports(report_data):
 
     with open(report_dir / "latest.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, ensure_ascii=False, indent=2)
-
     with open(report_dir / f"report-{report_data['date']}.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, ensure_ascii=False, indent=2)
 
-    trends_html = "".join(f"<li>{t}</li>" for t in report_data['trends'])
+    trends_html = "".join(
+        f'<p class="trend-item">{"①②③④⑤"[i]} {t}</p>'
+        for i, t in enumerate(report_data['trends'])
+    )
+
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>政策日报 - {report_data['date']}</title>
     <style>
-        body {{ font-family: "Microsoft YaHei", Arial, sans-serif; max-width: 900px; margin: 0 auto; padding: 20px; background: #f5f5f5; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; border-radius: 10px; margin-bottom: 30px; text-align: center; }}
-        .header h1 {{ margin: 0; font-size: 1.8em; }}
-        .header p {{ margin: 8px 0 0 0; opacity: 0.9; }}
-        .section {{ background: white; padding: 20px; margin-bottom: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); border-left: 5px solid #667eea; }}
-        .section h2 {{ color: #667eea; margin-top: 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }}
-        .policy {{ background: #f9f9f9; padding: 15px; margin-bottom: 15px; border-left: 3px solid #764ba2; border-radius: 3px; }}
-        .policy h3 {{ margin: 0 0 10px 0; color: #333; font-size: 1em; }}
-        .policy-meta {{ color: #666; font-size: 0.88em; margin-bottom: 10px; line-height: 1.8; }}
-        .doc-number {{ color: #764ba2; font-weight: bold; }}
-        .policy-summary {{ color: #444; line-height: 1.7; font-size: 0.95em; }}
-        .trends ul {{ margin: 0; padding-left: 20px; }}
-        .trends li {{ margin-bottom: 10px; color: #444; line-height: 1.7; }}
-        .footer {{ text-align: center; color: #999; padding: 20px; font-size: 0.85em; }}
-        a {{ color: #667eea; text-decoration: none; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        body {{
+            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+            font-size: 16px;
+            line-height: 1.8;
+            color: #333;
+            background: #f7f7f7;
+            padding: 16px;
+        }}
+        .article {{
+            max-width: 680px;
+            margin: 0 auto;
+            background: white;
+            padding: 24px 20px;
+        }}
+        .article-title {{
+            font-size: 22px;
+            font-weight: bold;
+            color: #1a1a1a;
+            text-align: center;
+            margin-bottom: 6px;
+        }}
+        .article-date {{
+            font-size: 13px;
+            color: #999;
+            text-align: center;
+            margin-bottom: 24px;
+        }}
+        .section-title {{
+            font-size: 17px;
+            font-weight: bold;
+            color: #fff;
+            background: #5b6de4;
+            padding: 8px 14px;
+            border-radius: 4px;
+            margin: 24px 0 12px 0;
+        }}
+        .policy {{
+            border-left: 3px solid #5b6de4;
+            padding: 12px 14px;
+            margin-bottom: 16px;
+            background: #f9f9ff;
+            border-radius: 0 4px 4px 0;
+        }}
+        .policy-title {{
+            font-size: 15px;
+            font-weight: bold;
+            color: #222;
+            margin-bottom: 6px;
+        }}
+        .policy-meta {{
+            font-size: 13px;
+            color: #666;
+            margin-bottom: 3px;
+        }}
+        .policy-summary {{
+            font-size: 14px;
+            color: #444;
+            margin-top: 8px;
+            line-height: 1.8;
+        }}
+        .trend-item {{
+            font-size: 14px;
+            color: #444;
+            line-height: 1.8;
+            margin-bottom: 10px;
+            padding-left: 4px;
+        }}
+        .divider {{
+            border: none;
+            border-top: 1px dashed #ddd;
+            margin: 20px 0;
+        }}
+        .footer {{
+            font-size: 12px;
+            color: #bbb;
+            text-align: center;
+            margin-top: 24px;
+            padding-top: 16px;
+            border-top: 1px solid #eee;
+        }}
+        a {{ color: #5b6de4; text-decoration: none; }}
     </style>
 </head>
 <body>
-    <div class="header">
-        <h1>数据和信息化政策日报</h1>
-        <p>数据 • 算力 • 信息化 政策速览</p>
-        <p>生成日期：{report_data['date']}</p>
-    </div>
-    <div class="section">
-        <h2>一、过去 24 小时关键政策</h2>
-        {render_policies(report_data['policies_24h'])}
-    </div>
-    <div class="section">
-        <h2>二、过去一个月主要政策动向</h2>
-        {render_policies(report_data['policies_1month'])}
-    </div>
-    <div class="section trends">
-        <h2>三、未来趋势判断</h2>
-        <ul>{trends_html}</ul>
-    </div>
+<div class="article">
+
+    <div class="article-title">数据和信息化政策日报</div>
+    <div class="article-date">{report_data['date']} | 数据 · 算力 · 信息化</div>
+
+    <div class="section-title">一、过去 24 小时关键政策</div>
+    {render_policies(report_data['policies_24h'])}
+
+    <hr class="divider"/>
+
+    <div class="section-title">二、过去一个月主要政策动向</div>
+    {render_policies(report_data['policies_1month'])}
+
+    <hr class="divider"/>
+
+    <div class="section-title">三、未来趋势判断</div>
+    {trends_html}
+
     <div class="footer">
-        <p>每天早上 6:00 自动生成 | <a href="../index.html">返回首页</a></p>
+        每天早上 6:00 自动生成 · <a href="../index.html">返回首页</a>
     </div>
+
+</div>
 </body>
 </html>"""
 
