@@ -146,19 +146,19 @@ def validate_report(report_data):
     return warnings
 
 def render_policies(policies):
-    """公众号优化格式：标题大字 + 元数据一行 + 摘要 + 链接纯文字"""
+    """公众号标准格式：无背景色，纯文字流，虚线分隔"""
     html = ""
     for p in policies:
         url = p.get('url', '')
         url_html = (
-            f'<p style="font-size:12px;color:#aaa;margin:10px 0 0 0;word-break:break-all;line-height:1.6;">'
-            f'<a href="{url}" style="color:#aaa;text-decoration:none;">{url}</a></p>'
+            f'<p style="font-size:12px;color:#bbb;margin:8px 0 0 0;word-break:break-all;line-height:1.5;">'
+            f'<a href="{url}" style="color:#bbb;text-decoration:none;">{url}</a></p>'
         ) if url else ''
         html += f"""
-        <div style="margin-bottom:20px;padding:16px 18px;background:#f8f9ff;border-radius:6px;border-left:4px solid #5b6de4;">
-            <p style="font-size:16px;font-weight:bold;color:#1a1a1a;margin:0 0 6px 0;line-height:1.5;">《{p['title']}》</p>
-            <p style="font-size:12px;color:#888;margin:0 0 12px 0;line-height:1.6;">{p.get('doc_number','暂无')} &nbsp;|&nbsp; {p['institution']} &nbsp;|&nbsp; {p['date']}</p>
-            <p style="font-size:15px;color:#333;margin:0;line-height:1.9;">{p['summary']}</p>
+        <div style="margin-bottom:0;padding:20px 0;border-bottom:1px dashed #ddd;">
+            <p style="font-size:17px;font-weight:bold;color:#1a1a1a;margin:0 0 6px 0;line-height:1.5;">《{p['title']}》</p>
+            <p style="font-size:13px;color:#999;margin:0 0 12px 0;line-height:1.6;">{p.get('doc_number','暂无')} &nbsp;｜&nbsp; {p['institution']} &nbsp;｜&nbsp; {p['date']}</p>
+            <p style="font-size:15px;color:#333;margin:0;line-height:2.0;">{p['summary']}</p>
             {url_html}
         </div>"""
     return html
@@ -174,8 +174,8 @@ def save_reports(report_data):
 
     nums = ["①", "②", "③", "④", "⑤"]
     trends_html = "".join(
-        f'<p style="font-size:15px;color:#333;line-height:1.9;margin:0 0 14px 0;padding-left:14px;border-left:3px solid #5b6de4;">'
-        f'<strong style="color:#5b6de4;">{nums[i]}</strong>&nbsp; {t}</p>'
+        f'<p style="font-size:15px;color:#333;line-height:2.0;margin:0 0 16px 0;">'
+        f'<strong style="color:#5b6de4;font-size:16px;">{nums[i]}</strong>&emsp;{t}</p>'
         for i, t in enumerate(report_data['trends'])
     )
 
@@ -190,48 +190,41 @@ def save_reports(report_data):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>政策日报 - {report_data['date']}</title>
 </head>
-<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:15px;line-height:1.8;color:#333;background:#ebebeb;margin:0;padding:16px;">
+<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:15px;line-height:1.8;color:#333;background:#e8e8e8;margin:0;padding:20px;">
 
-<div style="max-width:680px;margin:0 auto;background:#fff;padding:32px 24px;border-radius:8px;">
+<div style="max-width:680px;margin:0 auto;background:#fff;padding:36px 28px;">
 
-    <!-- 返回导航 -->
-    <p style="margin:0 0 20px 0;font-size:13px;">
+    <!-- 返回 -->
+    <p style="margin:0 0 24px 0;font-size:13px;color:#bbb;">
         <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a>
     </p>
 
-    <!-- 标题区 -->
-    <p style="font-size:26px;font-weight:bold;color:#1a1a1a;text-align:center;margin:0 0 6px 0;line-height:1.3;">数据和信息化政策日报</p>
-    <p style="font-size:13px;color:#aaa;text-align:center;margin:0 0 6px 0;">{report_data['date']} &nbsp;|&nbsp; 数据 · 算力 · 信息化</p>
-    <p style="font-size:12px;color:#bbb;text-align:center;margin:0 0 28px 0;">
-        网页版：<a href="{report_html_url}" style="color:#5b6de4;text-decoration:none;">{report_html_url}</a>
-        &nbsp;&nbsp;|&nbsp;&nbsp;
-        Word版：<a href="{report_docx_url}" style="color:#5b6de4;text-decoration:none;">{report_docx_url}</a>
+    <!-- 标题 -->
+    <p style="font-size:26px;font-weight:bold;color:#111;text-align:center;margin:0 0 8px 0;line-height:1.3;">数据和信息化政策日报</p>
+    <p style="font-size:14px;color:#bbb;text-align:center;margin:0 0 4px 0;">{report_data['date']} &nbsp;·&nbsp; 数据 · 算力 · 信息化</p>
+    <p style="font-size:12px;color:#ccc;text-align:center;margin:0 0 36px 0;">
+        <a href="{report_html_url}" style="color:#5b6de4;text-decoration:none;">网页版链接</a>
+        &nbsp;&nbsp;｜&nbsp;&nbsp;
+        <a href="{report_docx_url}" style="color:#5b6de4;text-decoration:none;">下载 Word 版</a>
     </p>
 
-    <!-- 第一部分 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">一、过去 24 小时关键政策</p>
+    <!-- 一、24小时 -->
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:0 0 4px 0;letter-spacing:1px;">一、过去 24 小时关键政策</p>
     {render_policies(report_data['policies_24h'])}
 
-    <!-- 分隔 -->
-    <p style="border-top:2px dashed #ddd;margin:28px 0;"></p>
-
-    <!-- 第二部分 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">二、过去一个月主要政策动向</p>
+    <!-- 二、一个月 -->
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 4px 0;letter-spacing:1px;">二、过去一个月主要政策动向</p>
     {render_policies(report_data['policies_1month'])}
 
-    <!-- 分隔 -->
-    <p style="border-top:2px dashed #ddd;margin:28px 0;"></p>
-
-    <!-- 第三部分 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">三、未来趋势判断</p>
+    <!-- 三、趋势 -->
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 20px 0;letter-spacing:1px;">三、未来趋势判断</p>
     {trends_html}
 
     <!-- 页脚 -->
-    <p style="border-top:1px solid #eee;margin-top:32px;padding-top:18px;font-size:12px;color:#bbb;text-align:center;">
-        每天早上 6:00 自动更新 &nbsp;·&nbsp;
-        <a href="{base_url}" style="color:#5b6de4;text-decoration:none;">{base_url}</a>
-        &nbsp;·&nbsp;
-        <a href="../index.html" style="color:#5b6de4;text-decoration:none;">返回首页</a>
+    <p style="border-top:1px solid #eee;margin-top:36px;padding-top:16px;font-size:12px;color:#ccc;text-align:center;line-height:2.0;">
+        每天早上 6:00 自动更新<br>
+        <a href="{base_url}" style="color:#5b6de4;text-decoration:none;">{base_url}</a><br>
+        <a href="../index.html" style="color:#bbb;text-decoration:none;">← 返回首页</a>
     </p>
 
 </div>
