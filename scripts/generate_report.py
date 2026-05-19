@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+# 北京时间 UTC+8
+BEIJING_TZ = timezone(timedelta(hours=8))
+
 def create_report_content():
-    today = datetime.now()
+    today = datetime.now(BEIJING_TZ)
     date_str = today.strftime("%Y-%m-%d")
     return {
         "date": date_str,
@@ -103,6 +106,45 @@ def create_report_content():
         ]
     }
 
+def validate_report(report_data):
+    """校对报告内容：检查日期合理性和链接完整性"""
+    today = datetime.now(BEIJING_TZ).date()
+    warnings = []
+
+    checks = [
+        ("过去24小时", report_data['policies_24h'], 3),    # 允许3天内
+        ("过去一个月", report_data['policies_1month'], 35), # 允许35天内
+    ]
+    for section_name, policies, max_days in checks:
+        for p in policies:
+            try:
+                pub_date = datetime.strptime(p['date'], '%Y-%m-%d').date()
+                days_ago = (today - pub_date).days
+                if pub_date > today:
+                    warnings.append(f"[日期超前] 【{section_name}】{p['title']}: {p['date']}")
+                elif days_ago > max_days:
+                    warnings.append(f"[日期偏早] 【{section_name}】{p['title']}: {p['date']} (距今{days_ago}天)")
+            except ValueError:
+                warnings.append(f"[日期格式错误] {p['title']}: {p['date']}")
+            if not p.get('url'):
+                warnings.append(f"[缺少链接] {p['title']}")
+            if not p.get('doc_number'):
+                warnings.append(f"[缺少文号] {p['title']}")
+
+    def safe_print(msg):
+        try:
+            print(msg)
+        except UnicodeEncodeError:
+            print(msg.encode('utf-8', errors='replace').decode('ascii', errors='replace'))
+
+    if warnings:
+        safe_print("[!] Validation warnings:")
+        for w in warnings:
+            safe_print(f"  {w}")
+    else:
+        safe_print("[OK] Validation passed")
+    return warnings
+
 def render_policies(policies):
     """用内联样式渲染政策条目，确保粘贴到公众号格式保留"""
     html = ""
@@ -156,9 +198,14 @@ def save_reports(report_data):
     <p style="font-size:24px;font-weight:bold;color:#1a1a1a;text-align:center;margin:0 0 6px 0;">数据和信息化政策日报</p>
     <p style="font-size:13px;color:#999;text-align:center;margin:0 0 16px 0;">{report_data['date']} &nbsp;|&nbsp; 数据 · 算力 · 信息化</p>
 
+    <!-- 顶部导航 -->
+    <div style="text-align:left;margin-bottom:8px;">
+        <a href="../index.html" style="font-size:13px;color:#5b6de4;text-decoration:none;">← 返回首页</a>
+    </div>
+
     <!-- 下载链接 -->
     <div style="text-align:center;padding:0 0 24px 0;">
-        <a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html" style="display:inline-block;padding:7px 18px;background:#5b6de4;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">🌐 网页版</a>
+        <a href="https://neilbritain.github.io/daily-policy-report" style="display:inline-block;padding:7px 18px;background:#5b6de4;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">🌐 政策日报主页</a>
         <a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx" style="display:inline-block;padding:7px 18px;background:#52b788;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">📄 下载 Word 版</a>
     </div>
 
@@ -182,7 +229,7 @@ def save_reports(report_data):
 
     <!-- 页脚 -->
     <div style="border-top:1px solid #eee;margin-top:28px;padding-top:20px;text-align:center;font-size:13px;color:#666;">
-        <p style="margin:0 0 14px 0;color:#999;">每天早上 6:00 自动生成</p>
+        <p style="margin:0 0 14px 0;color:#999;">每天早上 6:00 自动生成 &nbsp;·&nbsp; <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a></p>
         <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">🌐 今日报告（网页版）</p>
         <p style="margin:0 0 14px 0;"><a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html" style="color:#5b6de4;text-decoration:none;word-break:break-all;font-size:12px;">https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html</a></p>
         <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">📄 今日报告（Word 下载）</p>
@@ -203,6 +250,7 @@ def save_reports(report_data):
 
 def main():
     report_data = create_report_content()
+    validate_report(report_data)
     save_reports(report_data)
 
 if __name__ == "__main__":

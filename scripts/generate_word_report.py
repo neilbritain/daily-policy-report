@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
+BEIJING_TZ = timezone(timedelta(hours=8))
+
 def get_report_data():
-    today = datetime.now()
+    today = datetime.now(BEIJING_TZ)
     date_str = today.strftime("%Y-%m-%d")
     return {
         "date": date_str,
