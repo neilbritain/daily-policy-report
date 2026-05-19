@@ -94,15 +94,16 @@ def create_report_content():
     }
 
 def render_policies(policies):
+    """用内联样式渲染政策条目，确保粘贴到公众号格式保留"""
     html = ""
     for p in policies:
         html += f"""
-        <div class="policy">
-            <p class="policy-title">《{p['title']}》</p>
-            <p class="policy-meta">【文号】{p.get('doc_number', '暂无')}</p>
-            <p class="policy-meta">【发文机关】{p['institution']}</p>
-            <p class="policy-meta">【发文日期】{p['date']}</p>
-            <p class="policy-summary">{p['summary']}</p>
+        <div style="border-left:4px solid #5b6de4;padding:12px 16px;margin-bottom:20px;background:#f5f6ff;border-radius:0 6px 6px 0;">
+            <p style="font-size:15px;font-weight:bold;color:#222;margin:0 0 8px 0;line-height:1.6;">《{p['title']}》</p>
+            <p style="font-size:13px;color:#5b6de4;margin:0 0 3px 0;font-weight:bold;">【文号】{p.get('doc_number', '暂无')}</p>
+            <p style="font-size:13px;color:#666;margin:0 0 3px 0;">【发文机关】{p['institution']}</p>
+            <p style="font-size:13px;color:#666;margin:0 0 10px 0;">【发文日期】{p['date']}</p>
+            <p style="font-size:14px;color:#444;margin:0;line-height:1.8;">{p['summary']}</p>
         </div>"""
     return html
 
@@ -115,8 +116,9 @@ def save_reports(report_data):
     with open(report_dir / f"report-{report_data['date']}.json", "w", encoding="utf-8") as f:
         json.dump(report_data, f, ensure_ascii=False, indent=2)
 
+    nums = ["①", "②", "③", "④", "⑤"]
     trends_html = "".join(
-        f'<p class="trend-item">{"①②③④⑤"[i]} {t}</p>'
+        f'<p style="font-size:14px;color:#444;line-height:1.9;margin:0 0 12px 0;"><strong style="color:#5b6de4;">{nums[i]}</strong> {t}</p>'
         for i, t in enumerate(report_data['trends'])
     )
 
@@ -126,112 +128,48 @@ def save_reports(report_data):
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>政策日报 - {report_data['date']}</title>
-    <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{
-            font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
-            font-size: 16px;
-            line-height: 1.8;
-            color: #333;
-            background: #f7f7f7;
-            padding: 16px;
-        }}
-        .article {{
-            max-width: 680px;
-            margin: 0 auto;
-            background: white;
-            padding: 24px 20px;
-        }}
-        .article-title {{
-            font-size: 22px;
-            font-weight: bold;
-            color: #1a1a1a;
-            text-align: center;
-            margin-bottom: 6px;
-        }}
-        .article-date {{
-            font-size: 13px;
-            color: #999;
-            text-align: center;
-            margin-bottom: 24px;
-        }}
-        .section-title {{
-            font-size: 17px;
-            font-weight: bold;
-            color: #fff;
-            background: #5b6de4;
-            padding: 8px 14px;
-            border-radius: 4px;
-            margin: 24px 0 12px 0;
-        }}
-        .policy {{
-            border-left: 3px solid #5b6de4;
-            padding: 12px 14px;
-            margin-bottom: 16px;
-            background: #f9f9ff;
-            border-radius: 0 4px 4px 0;
-        }}
-        .policy-title {{
-            font-size: 15px;
-            font-weight: bold;
-            color: #222;
-            margin-bottom: 6px;
-        }}
-        .policy-meta {{
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 3px;
-        }}
-        .policy-summary {{
-            font-size: 14px;
-            color: #444;
-            margin-top: 8px;
-            line-height: 1.8;
-        }}
-        .trend-item {{
-            font-size: 14px;
-            color: #444;
-            line-height: 1.8;
-            margin-bottom: 10px;
-            padding-left: 4px;
-        }}
-        .divider {{
-            border: none;
-            border-top: 1px dashed #ddd;
-            margin: 20px 0;
-        }}
-        .footer {{
-            font-size: 12px;
-            color: #bbb;
-            text-align: center;
-            margin-top: 24px;
-            padding-top: 16px;
-            border-top: 1px solid #eee;
-        }}
-        a {{ color: #5b6de4; text-decoration: none; }}
-    </style>
 </head>
-<body>
-<div class="article">
+<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:16px;line-height:1.8;color:#333;background:#f0f0f0;margin:0;padding:16px;">
 
-    <div class="article-title">数据和信息化政策日报</div>
-    <div class="article-date">{report_data['date']} | 数据 · 算力 · 信息化</div>
+<div style="max-width:680px;margin:0 auto;background:#fff;padding:30px 24px;border-radius:8px;">
 
-    <div class="section-title">一、过去 24 小时关键政策</div>
+    <!-- 标题 -->
+    <p style="font-size:24px;font-weight:bold;color:#1a1a1a;text-align:center;margin:0 0 6px 0;">数据和信息化政策日报</p>
+    <p style="font-size:13px;color:#999;text-align:center;margin:0 0 16px 0;">{report_data['date']} &nbsp;|&nbsp; 数据 · 算力 · 信息化</p>
+
+    <!-- 下载链接 -->
+    <div style="text-align:center;padding:0 0 24px 0;">
+        <a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html" style="display:inline-block;padding:7px 18px;background:#5b6de4;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">🌐 网页版</a>
+        <a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx" style="display:inline-block;padding:7px 18px;background:#52b788;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">📄 下载 Word 版</a>
+    </div>
+
+    <!-- 第一部分 -->
+    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">一、过去 24 小时关键政策</div>
     {render_policies(report_data['policies_24h'])}
 
-    <hr class="divider"/>
+    <!-- 分隔线 -->
+    <div style="border-top:1px dashed #ccc;margin:24px 0;"></div>
 
-    <div class="section-title">二、过去一个月主要政策动向</div>
+    <!-- 第二部分 -->
+    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">二、过去一个月主要政策动向</div>
     {render_policies(report_data['policies_1month'])}
 
-    <hr class="divider"/>
+    <!-- 分隔线 -->
+    <div style="border-top:1px dashed #ccc;margin:24px 0;"></div>
 
-    <div class="section-title">三、未来趋势判断</div>
+    <!-- 第三部分 -->
+    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">三、未来趋势判断</div>
     {trends_html}
 
-    <div class="footer">
-        每天早上 6:00 自动生成 · <a href="../index.html">返回首页</a>
+    <!-- 页脚 -->
+    <div style="border-top:1px solid #eee;margin-top:28px;padding-top:20px;text-align:center;font-size:13px;color:#666;">
+        <p style="margin:0 0 14px 0;color:#999;">每天早上 6:00 自动生成</p>
+        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">🌐 今日报告（网页版）</p>
+        <p style="margin:0 0 14px 0;"><a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html" style="color:#5b6de4;text-decoration:none;word-break:break-all;font-size:12px;">https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html</a></p>
+        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">📄 今日报告（Word 下载）</p>
+        <p style="margin:0 0 14px 0;"><a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx" style="color:#5b6de4;text-decoration:none;word-break:break-all;font-size:12px;">https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx</a></p>
+        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">📋 政策日报主页</p>
+        <p style="margin:0;"><a href="https://neilbritain.github.io/daily-policy-report" style="color:#5b6de4;text-decoration:none;font-size:12px;">https://neilbritain.github.io/daily-policy-report</a></p>
     </div>
 
 </div>
