@@ -146,25 +146,20 @@ def validate_report(report_data):
     return warnings
 
 def render_policies(policies):
-    """用内联样式渲染政策条目，确保粘贴到公众号格式保留"""
+    """公众号优化格式：标题大字 + 元数据一行 + 摘要 + 链接纯文字"""
     html = ""
     for p in policies:
         url = p.get('url', '')
-        link_html = (
-            f'<p style="margin:10px 0 0 0;">'
-            f'<a href="{url}" style="display:inline-block;padding:4px 14px;background:#5b6de4;color:#fff;'
-            f'font-size:12px;text-decoration:none;border-radius:3px;">🔗 查看原文</a>'
-            f'&nbsp;&nbsp;<span style="font-size:11px;color:#999;word-break:break-all;">{url}</span>'
-            f'</p>'
+        url_html = (
+            f'<p style="font-size:12px;color:#aaa;margin:10px 0 0 0;word-break:break-all;line-height:1.6;">'
+            f'<a href="{url}" style="color:#aaa;text-decoration:none;">{url}</a></p>'
         ) if url else ''
         html += f"""
-        <div style="border-left:4px solid #5b6de4;padding:12px 16px;margin-bottom:20px;background:#f5f6ff;border-radius:0 6px 6px 0;">
-            <p style="font-size:15px;font-weight:bold;color:#222;margin:0 0 8px 0;line-height:1.6;">《{p['title']}》</p>
-            <p style="font-size:13px;color:#5b6de4;margin:0 0 3px 0;font-weight:bold;">【文号】{p.get('doc_number', '暂无')}</p>
-            <p style="font-size:13px;color:#666;margin:0 0 3px 0;">【发文机关】{p['institution']}</p>
-            <p style="font-size:13px;color:#666;margin:0 0 10px 0;">【发文日期】{p['date']}</p>
-            <p style="font-size:14px;color:#444;margin:0;line-height:1.8;">{p['summary']}</p>
-            {link_html}
+        <div style="margin-bottom:20px;padding:16px 18px;background:#f8f9ff;border-radius:6px;border-left:4px solid #5b6de4;">
+            <p style="font-size:16px;font-weight:bold;color:#1a1a1a;margin:0 0 6px 0;line-height:1.5;">《{p['title']}》</p>
+            <p style="font-size:12px;color:#888;margin:0 0 12px 0;line-height:1.6;">{p.get('doc_number','暂无')} &nbsp;|&nbsp; {p['institution']} &nbsp;|&nbsp; {p['date']}</p>
+            <p style="font-size:15px;color:#333;margin:0;line-height:1.9;">{p['summary']}</p>
+            {url_html}
         </div>"""
     return html
 
@@ -179,9 +174,14 @@ def save_reports(report_data):
 
     nums = ["①", "②", "③", "④", "⑤"]
     trends_html = "".join(
-        f'<p style="font-size:14px;color:#444;line-height:1.9;margin:0 0 12px 0;"><strong style="color:#5b6de4;">{nums[i]}</strong> {t}</p>'
+        f'<p style="font-size:15px;color:#333;line-height:1.9;margin:0 0 14px 0;padding-left:14px;border-left:3px solid #5b6de4;">'
+        f'<strong style="color:#5b6de4;">{nums[i]}</strong>&nbsp; {t}</p>'
         for i, t in enumerate(report_data['trends'])
     )
+
+    base_url = "https://neilbritain.github.io/daily-policy-report"
+    report_html_url = f"{base_url}/reports/report-{report_data['date']}.html"
+    report_docx_url = f"{base_url}/reports/report-{report_data['date']}.docx"
 
     html_content = f"""<!DOCTYPE html>
 <html lang="zh-CN">
@@ -190,53 +190,49 @@ def save_reports(report_data):
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>政策日报 - {report_data['date']}</title>
 </head>
-<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:16px;line-height:1.8;color:#333;background:#f0f0f0;margin:0;padding:16px;">
+<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:15px;line-height:1.8;color:#333;background:#ebebeb;margin:0;padding:16px;">
 
-<div style="max-width:680px;margin:0 auto;background:#fff;padding:30px 24px;border-radius:8px;">
+<div style="max-width:680px;margin:0 auto;background:#fff;padding:32px 24px;border-radius:8px;">
 
-    <!-- 标题 -->
-    <p style="font-size:24px;font-weight:bold;color:#1a1a1a;text-align:center;margin:0 0 6px 0;">数据和信息化政策日报</p>
-    <p style="font-size:13px;color:#999;text-align:center;margin:0 0 16px 0;">{report_data['date']} &nbsp;|&nbsp; 数据 · 算力 · 信息化</p>
+    <!-- 返回导航 -->
+    <p style="margin:0 0 20px 0;font-size:13px;">
+        <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a>
+    </p>
 
-    <!-- 顶部导航 -->
-    <div style="text-align:left;margin-bottom:8px;">
-        <a href="../index.html" style="font-size:13px;color:#5b6de4;text-decoration:none;">← 返回首页</a>
-    </div>
-
-    <!-- 下载链接 -->
-    <div style="text-align:center;padding:0 0 24px 0;">
-        <a href="https://neilbritain.github.io/daily-policy-report" style="display:inline-block;padding:7px 18px;background:#5b6de4;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">🌐 政策日报主页</a>
-        <a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx" style="display:inline-block;padding:7px 18px;background:#52b788;color:#fff;text-decoration:none;border-radius:4px;font-size:13px;margin:0 6px;">📄 下载 Word 版</a>
-    </div>
+    <!-- 标题区 -->
+    <p style="font-size:26px;font-weight:bold;color:#1a1a1a;text-align:center;margin:0 0 6px 0;line-height:1.3;">数据和信息化政策日报</p>
+    <p style="font-size:13px;color:#aaa;text-align:center;margin:0 0 6px 0;">{report_data['date']} &nbsp;|&nbsp; 数据 · 算力 · 信息化</p>
+    <p style="font-size:12px;color:#bbb;text-align:center;margin:0 0 28px 0;">
+        网页版：<a href="{report_html_url}" style="color:#5b6de4;text-decoration:none;">{report_html_url}</a>
+        &nbsp;&nbsp;|&nbsp;&nbsp;
+        Word版：<a href="{report_docx_url}" style="color:#5b6de4;text-decoration:none;">{report_docx_url}</a>
+    </p>
 
     <!-- 第一部分 -->
-    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">一、过去 24 小时关键政策</div>
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">一、过去 24 小时关键政策</p>
     {render_policies(report_data['policies_24h'])}
 
-    <!-- 分隔线 -->
-    <div style="border-top:1px dashed #ccc;margin:24px 0;"></div>
+    <!-- 分隔 -->
+    <p style="border-top:2px dashed #ddd;margin:28px 0;"></p>
 
     <!-- 第二部分 -->
-    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">二、过去一个月主要政策动向</div>
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">二、过去一个月主要政策动向</p>
     {render_policies(report_data['policies_1month'])}
 
-    <!-- 分隔线 -->
-    <div style="border-top:1px dashed #ccc;margin:24px 0;"></div>
+    <!-- 分隔 -->
+    <p style="border-top:2px dashed #ddd;margin:28px 0;"></p>
 
     <!-- 第三部分 -->
-    <div style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:6px;margin:0 0 16px 0;">三、未来趋势判断</div>
+    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:10px 16px;border-radius:4px;margin:0 0 18px 0;">三、未来趋势判断</p>
     {trends_html}
 
     <!-- 页脚 -->
-    <div style="border-top:1px solid #eee;margin-top:28px;padding-top:20px;text-align:center;font-size:13px;color:#666;">
-        <p style="margin:0 0 14px 0;color:#999;">每天早上 6:00 自动生成 &nbsp;·&nbsp; <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a></p>
-        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">🌐 今日报告（网页版）</p>
-        <p style="margin:0 0 14px 0;"><a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html" style="color:#5b6de4;text-decoration:none;word-break:break-all;font-size:12px;">https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.html</a></p>
-        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">📄 今日报告（Word 下载）</p>
-        <p style="margin:0 0 14px 0;"><a href="https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx" style="color:#5b6de4;text-decoration:none;word-break:break-all;font-size:12px;">https://neilbritain.github.io/daily-policy-report/reports/report-{report_data['date']}.docx</a></p>
-        <p style="margin:0 0 6px 0;font-weight:bold;color:#444;">📋 政策日报主页</p>
-        <p style="margin:0;"><a href="https://neilbritain.github.io/daily-policy-report" style="color:#5b6de4;text-decoration:none;font-size:12px;">https://neilbritain.github.io/daily-policy-report</a></p>
-    </div>
+    <p style="border-top:1px solid #eee;margin-top:32px;padding-top:18px;font-size:12px;color:#bbb;text-align:center;">
+        每天早上 6:00 自动更新 &nbsp;·&nbsp;
+        <a href="{base_url}" style="color:#5b6de4;text-decoration:none;">{base_url}</a>
+        &nbsp;·&nbsp;
+        <a href="../index.html" style="color:#5b6de4;text-decoration:none;">返回首页</a>
+    </p>
 
 </div>
 </body>
