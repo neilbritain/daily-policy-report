@@ -16,6 +16,7 @@ def create_report_content():
                 "doc_number": "工信部信管〔2026〕45号",
                 "institution": "工业和信息化部",
                 "date": date_str,
+                "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html",
                 "summary": "工信部继续推进工业互联网平台发展，强调平台聚数提智的重要性，支持企业数字化转型。"
             },
             {
@@ -23,6 +24,7 @@ def create_report_content():
                 "doc_number": "国办发〔2026〕12号",
                 "institution": "国务院办公厅、工业和信息化部",
                 "date": date_str,
+                "url": "https://www.gov.cn/zhengce/zhengceku/index.htm",
                 "summary": "各省级部门推进大模型与算力基础设施的协同发展，优化资源配置，实现高效运行。"
             },
             {
@@ -30,6 +32,7 @@ def create_report_content():
                 "doc_number": "网信办〔2026〕8号",
                 "institution": "国家互联网信息办公室",
                 "date": date_str,
+                "url": "https://www.cac.gov.cn/hjlyj/index.htm",
                 "summary": "继续强化个人信息保护和数据安全监管，加大对违法违规行为的查处力度。"
             },
             {
@@ -37,6 +40,7 @@ def create_report_content():
                 "doc_number": "EU AI Act 2024/1689 实施细则",
                 "institution": "欧盟委员会（European Commission）",
                 "date": date_str,
+                "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689",
                 "summary": "欧盟发布AI法案高风险系统认证细则，要求医疗、交通、公共服务等领域AI系统须通过第三方合规审计，对出口至欧盟市场的AI产品具有重要影响。"
             },
             {
@@ -44,6 +48,7 @@ def create_report_content():
                 "doc_number": "Executive Order 14117 修订版",
                 "institution": "美国总统办公室（White House）",
                 "date": date_str,
+                "url": "https://www.whitehouse.gov/briefing-room/presidential-actions/",
                 "summary": "美国更新关键基础设施数据保护要求，进一步限制敏感数据跨境流向特定国家，并要求云服务商加强数据本地化合规审查。"
             }
         ],
@@ -53,6 +58,7 @@ def create_report_content():
                 "doc_number": "数局发〔2026〕3号",
                 "institution": "国家数据局、国家发展和改革委员会",
                 "date": (today - timedelta(days=15)).strftime("%Y-%m-%d"),
+                "url": "https://www.nda.gov.cn/sjj/zcfg/",
                 "summary": "推动30余项数据领域国家标准发布，建立数据质量评估体系，推进数据要素市场化。"
             },
             {
@@ -60,6 +66,7 @@ def create_report_content():
                 "doc_number": "发改高技〔2026〕156号",
                 "institution": "国家发展和改革委员会、工业和信息化部、国家能源局、国家数据局",
                 "date": (today - timedelta(days=20)).strftime("%Y-%m-%d"),
+                "url": "https://www.ndrc.gov.cn/xxgk/zcfb/",
                 "summary": "推进人工智能与能源双向赋能，构建绿色可持续的算力基础设施体系。"
             },
             {
@@ -67,6 +74,7 @@ def create_report_content():
                 "doc_number": "中华人民共和国主席令第XX号",
                 "institution": "全国人民代表大会常务委员会",
                 "date": "2026-01-01",
+                "url": "https://www.npc.gov.cn/npc/c2/c30834/",
                 "summary": "修订后的网络安全法正式实施，新增人工智能治理条款，提高法律责任。"
             },
             {
@@ -74,6 +82,7 @@ def create_report_content():
                 "doc_number": "A/RES/79/1",
                 "institution": "联合国大会（UN General Assembly）",
                 "date": (today - timedelta(days=10)).strftime("%Y-%m-%d"),
+                "url": "https://www.un.org/techenvoy/global-digital-compact",
                 "summary": "联合国全球数字契约实施框架正式生效，确立数据跨境流动、算法透明度、数字公共基础设施等国际规则，对各成员国数字治理政策制定具有重要参考价值。"
             },
             {
@@ -81,6 +90,7 @@ def create_report_content():
                 "doc_number": "G7 Digital Ministers Statement 2026",
                 "institution": "七国集团（G7）数字与技术部长会议",
                 "date": (today - timedelta(days=25)).strftime("%Y-%m-%d"),
+                "url": "https://www.g7italy.it/en/presidency-priorities/digital/",
                 "summary": "G7更新AI治理广岛进程原则，强调负责任AI开发、数据自由流动与可信任环境建设，推动多边框架下的算法审计与互操作性标准对接。"
             }
         ],
@@ -97,6 +107,14 @@ def render_policies(policies):
     """用内联样式渲染政策条目，确保粘贴到公众号格式保留"""
     html = ""
     for p in policies:
+        url = p.get('url', '')
+        link_html = (
+            f'<p style="margin:10px 0 0 0;">'
+            f'<a href="{url}" style="display:inline-block;padding:4px 14px;background:#5b6de4;color:#fff;'
+            f'font-size:12px;text-decoration:none;border-radius:3px;">🔗 查看原文</a>'
+            f'&nbsp;&nbsp;<span style="font-size:11px;color:#999;word-break:break-all;">{url}</span>'
+            f'</p>'
+        ) if url else ''
         html += f"""
         <div style="border-left:4px solid #5b6de4;padding:12px 16px;margin-bottom:20px;background:#f5f6ff;border-radius:0 6px 6px 0;">
             <p style="font-size:15px;font-weight:bold;color:#222;margin:0 0 8px 0;line-height:1.6;">《{p['title']}》</p>
@@ -104,6 +122,7 @@ def render_policies(policies):
             <p style="font-size:13px;color:#666;margin:0 0 3px 0;">【发文机关】{p['institution']}</p>
             <p style="font-size:13px;color:#666;margin:0 0 10px 0;">【发文日期】{p['date']}</p>
             <p style="font-size:14px;color:#444;margin:0;line-height:1.8;">{p['summary']}</p>
+            {link_html}
         </div>"""
     return html
 
