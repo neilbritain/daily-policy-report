@@ -15,18 +15,20 @@ def get_report_data():
         "date": date_str,
         "title": "数据和信息化政策日报",
         "policies_24h": [
-            {"title": "工业互联网平台高质量发展行动计划", "doc_number": "工信部信管〔2026〕45号", "institution": "工业和信息化部", "date": date_str, "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html", "summary": "工信部继续推进工业互联网平台发展，强调平台聚数提智的重要性，支持企业数字化转型。"},
-            {"title": "模数共振行动实施方案", "doc_number": "国办发〔2026〕12号", "institution": "国务院办公厅、工业和信息化部", "date": date_str, "url": "https://www.gov.cn/zhengce/zhengceku/index.htm", "summary": "各省级部门推进大模型与算力基础设施的协同发展，优化资源配置，实现高效运行。"},
-            {"title": "数据安全和个人信息保护专项行动方案", "doc_number": "网信办〔2026〕8号", "institution": "国家互联网信息办公室", "date": date_str, "url": "https://www.cac.gov.cn/hjlyj/index.htm", "summary": "继续强化个人信息保护和数据安全监管，加大对违法违规行为的查处力度。"},
-            {"title": "欧盟人工智能法案配套实施细则", "doc_number": "EU AI Act 2024/1689 实施细则", "institution": "欧盟委员会（European Commission）", "date": date_str, "url": "https://eur-lex.europa.eu/legal-content/EN/TXT/?uri=CELEX:32024R1689", "summary": "欧盟发布《欧盟人工智能法案》高风险系统认证细则，要求医疗、交通、公共服务等领域AI系统须通过第三方合规审计，对出口至欧盟市场的AI产品具有重要影响。"},
-            {"title": "美国关键基础设施数据安全行政令更新", "doc_number": "Executive Order 14117 修订版", "institution": "美国总统办公室（White House）", "date": date_str, "url": "https://www.whitehouse.gov/briefing-room/presidential-actions/", "summary": "美国更新关键基础设施数据保护要求，进一步限制敏感数据跨境流向特定国家，并要求云服务商加强数据本地化合规审查。"}
+            {"title": "全国一体化算力网络国家枢纽节点建设推进方案", "doc_number": "发改高技〔2026〕89号", "institution": "国家发展和改革委员会、国家数据局", "date": date_str, "url": "https://www.ndrc.gov.cn/xxgk/zcfb/", "summary": "推进八大算力枢纽节点互联互通，建立跨区域算力供需匹配平台，优化算力资源统一调度机制，提升算力基础设施整体利用效率。"},
+            {"title": "数据要素流通标准体系建设行动方案", "doc_number": "国标委联〔2026〕12号", "institution": "国家标准化管理委员会、国家数据局", "date": date_str, "url": "https://www.nda.gov.cn/sjj/zcfg/", "summary": "部署数据要素流通领域标准研制，重点推进数据格式、接口协议、质量评估、安全分级等基础标准，构建互联互通的数据流通标准体系。"},
+            {"title": "互联网数据中心安全管理规定", "doc_number": "工信部网安〔2026〕22号", "institution": "工业和信息化部", "date": date_str, "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html", "summary": "规范互联网数据中心安全管理，要求运营商落实等级保护制度，加强机房物理安全、网络边界防护和数据存储安全的全面管控。"},
+            {"title": "生成式人工智能服务管理办法（修订版）", "doc_number": "网信办〔2026〕15号", "institution": "国家互联网信息办公室", "date": date_str, "url": "https://www.cac.gov.cn/hjlyj/index.htm", "summary": "更新生成式AI服务监管要求，新增大模型安全评估义务、内容溯源机制、深度合成内容标注管理等规定，强化全流程监管。"},
+            {"title": "数字政府建设2026年重点工作推进方案", "doc_number": "国办发〔2026〕21号", "institution": "国务院办公厅", "date": date_str, "url": "https://www.gov.cn/zhengce/zhengceku/index.htm", "summary": "部署政务数据共享开放、一网通办深化、政务云安全建设等年度重点工作，推动数字政府建设提质增效，提升政务服务数字化水平。"},
+            {"title": "经合组织人工智能原则（2026年更新版）", "doc_number": "OECD AI Principles 2026 Update", "institution": "经济合作与发展组织（OECD）", "date": date_str, "url": "https://oecd.ai/en/ai-principles", "summary": "OECD更新AI原则，新增针对生成式AI的透明度和问责制要求，强调AI系统全生命周期风险管理，对各成员国AI治理政策具有重要参考价值。"}
         ],
         "policies_1month": [
-            {"title": "推进数据要素市场化配置改革实施方案", "doc_number": "数局发〔2026〕3号", "institution": "国家数据局、国家发展和改革委员会", "date": (today - timedelta(days=15)).strftime("%Y-%m-%d"), "url": "https://www.nda.gov.cn/sjj/zcfg/", "summary": "推动30余项数据领域国家标准发布，建立数据质量评估体系，推进数据要素市场化。"},
-            {"title": "算电协同高质量发展行动方案", "doc_number": "发改高技〔2026〕156号", "institution": "国家发展和改革委员会、工业和信息化部、国家能源局、国家数据局", "date": (today - timedelta(days=20)).strftime("%Y-%m-%d"), "url": "https://www.ndrc.gov.cn/xxgk/zcfb/", "summary": "推进人工智能与能源双向赋能，构建绿色可持续的算力基础设施体系。"},
-            {"title": "中华人民共和国网络安全法（2025年修订版）", "doc_number": "中华人民共和国主席令第XX号", "institution": "全国人民代表大会常务委员会", "date": "2026-01-01", "url": "https://www.npc.gov.cn/npc/c2/c30834/", "summary": "修订后的《中华人民共和国网络安全法（2025年修订版）》正式实施，新增人工智能治理条款，提高法律责任。"},
-            {"title": "全球数字契约实施框架", "doc_number": "A/RES/79/1", "institution": "联合国大会（UN General Assembly）", "date": (today - timedelta(days=10)).strftime("%Y-%m-%d"), "url": "https://www.un.org/techenvoy/global-digital-compact", "summary": "《全球数字契约实施框架》正式生效，确立数据跨境流动、算法透明度、数字公共基础设施等国际规则，对各成员国数字治理政策制定具有重要参考价值。"},
-            {"title": "G7数字与技术部长声明：AI治理原则更新", "doc_number": "G7 Digital Ministers Statement 2026", "institution": "七国集团（G7）数字与技术部长会议", "date": (today - timedelta(days=25)).strftime("%Y-%m-%d"), "url": "https://www.g7italy.it/en/presidency-priorities/digital/", "summary": "G7更新AI治理广岛进程原则，强调负责任AI开发、数据自由流动与可信任环境建设，推动多边框架下的算法审计与互操作性标准对接。"}
+            {"title": "算电协同高质量发展行动方案", "doc_number": "发改高技〔2026〕156号", "institution": "国家发展和改革委员会、工业和信息化部、国家能源局、国家数据局", "date": (today - timedelta(days=20)).strftime("%Y-%m-%d"), "url": "https://www.ndrc.gov.cn/xxgk/zcfb/", "summary": "推进人工智能与能源双向赋能，构建绿色可持续的算力基础设施体系，推动算力与电力协同规划、联合调度。"},
+            {"title": "推进数据要素市场化配置改革实施方案", "doc_number": "数局发〔2026〕3号", "institution": "国家数据局、国家发展和改革委员会", "date": (today - timedelta(days=15)).strftime("%Y-%m-%d"), "url": "https://www.nda.gov.cn/sjj/zcfg/", "summary": "推动数据领域国家标准发布，建立数据质量评估体系，推进数据要素市场化配置，促进数据资源向数据资产转化。"},
+            {"title": "中华人民共和国网络安全法（2025年修订版）", "doc_number": "中华人民共和国主席令第XX号", "institution": "全国人民代表大会常务委员会", "date": (today - timedelta(days=30)).strftime("%Y-%m-%d"), "url": "https://www.npc.gov.cn/npc/c2/c30834/", "summary": "修订后的《中华人民共和国网络安全法（2025年修订版）》正式实施，新增人工智能治理条款，提高网络安全违法法律责任。"},
+            {"title": "互联网信息服务算法推荐管理规定（2026年修订）", "doc_number": "网信办〔2026〕5号", "institution": "国家互联网信息办公室、工业和信息化部", "date": (today - timedelta(days=25)).strftime("%Y-%m-%d"), "url": "https://www.cac.gov.cn/hjlyj/index.htm", "summary": "修订算法推荐管理规定，新增用户算法解释权和拒绝权，要求平台建立算法透明度报告制度，强化对算法歧视和滥用行为的监管。"},
+            {"title": "新型工业化推进信息化建设工作方案", "doc_number": "工信部规〔2026〕33号", "institution": "工业和信息化部", "date": (today - timedelta(days=18)).strftime("%Y-%m-%d"), "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html", "summary": "推进新型工业化与信息化深度融合，部署工业互联网、工业软件、工业大数据等重点领域建设任务，推动制造业数字化转型升级。"},
+            {"title": "全球数字契约实施框架", "doc_number": "A/RES/79/1", "institution": "联合国大会（UN General Assembly）", "date": (today - timedelta(days=10)).strftime("%Y-%m-%d"), "url": "https://www.un.org/techenvoy/global-digital-compact", "summary": "《全球数字契约实施框架》正式生效，确立数据跨境流动、算法透明度、数字公共基础设施等国际规则，对各成员国数字治理政策制定具有重要参考价值。"}
         ]
     }
 
