@@ -66,7 +66,7 @@ def create_report_content():
                 "institution": "经济合作与发展组织（OECD）",
                 "date": date_str,
                 "url": "https://oecd.ai/en/ai-principles",
-                "summary": "OECD更新AI原则，新增针对生成式AI的透明度和问责制要求，强调AI系统全生命周期风险管理，对各成员国AI治理政策具有重要参考价值。"
+                "summary": "OECD更新《经合组织人工智能原则（2026年更新版）》，新增针对生成式AI的透明度和问责制要求，强调AI系统全生命周期风险管理，对各成员国AI治理政策具有重要参考价值。"
             }
         ],
         "policies_1month": [
@@ -104,7 +104,7 @@ def create_report_content():
                 "institution": "国家互联网信息办公室、工业和信息化部",
                 "date": (today - timedelta(days=25)).strftime("%Y-%m-%d"),
                 "url": "https://www.cac.gov.cn/hjlyj/index.htm",
-                "summary": "修订算法推荐管理规定，新增用户算法解释权和拒绝权，要求平台建立算法透明度报告制度，强化对算法歧视和滥用行为的监管。"
+                "summary": "修订《互联网信息服务算法推荐管理规定（2026年修订）》，新增用户算法解释权和拒绝权，要求平台建立算法透明度报告制度，强化对算法歧视和滥用行为的监管。"
             },
             # 信息化
             {
