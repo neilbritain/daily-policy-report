@@ -2,10 +2,15 @@ name: 每日政策报告生成和发布
 
 on:
   schedule:
-    # 每天早上 6:00 北京时间（UTC+8）
-    # 使用 UTC 时间：6:00 北京时间 = 22:00 前一天 UTC
+    # 每天早上 7:00 日本时间（JST, UTC+9）
+    # = 每天早上 6:00 北京时间（CST, UTC+8）
+    # = 前一天 22:00 UTC
+    # 注：GitHub 定时任务可能延迟，实际触发时间有±15分钟偏差
     - cron: '0 22 * * *'
   workflow_dispatch:  # 允许手动触发
+  push:
+    branches:
+      - main  # 每次推送代码也自动发布，确保内容始终最新
 
 permissions:
   contents: read

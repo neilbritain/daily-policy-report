@@ -6,7 +6,7 @@ from docx import Document
 from docx.shared import Pt, RGBColor
 from docx.enum.text import WD_PARAGRAPH_ALIGNMENT
 
-BEIJING_TZ = timezone(timedelta(hours=8))
+BEIJING_TZ = timezone(timedelta(hours=9))  # 日本标准时间 JST = UTC+9
 
 def get_report_data():
     today = datetime.now(BEIJING_TZ)

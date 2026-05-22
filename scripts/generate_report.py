@@ -4,8 +4,9 @@ import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# 北京时间 UTC+8
-BEIJING_TZ = timezone(timedelta(hours=8))
+# 日本标准时间 JST = UTC+9（与北京时间相差1小时，每天7:00 JST发布）
+JST = timezone(timedelta(hours=9))
+BEIJING_TZ = JST  # 用日本时间作为报告日期基准
 
 def create_report_content():
     today = datetime.now(BEIJING_TZ)
