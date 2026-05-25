@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-每日政策报告生成脚本 v3.0
-搜索引擎抓取 + Claude API 生成真实内容
+每日政策报告生成脚本 v3.1
+搜索引擎抓取 + DeepSeek API 生成真实内容
 """
 import os
 import json
@@ -17,12 +17,6 @@ try:
     HAS_BS4 = True
 except ImportError:
     HAS_BS4 = False
-
-try:
-    import anthropic
-    HAS_ANTHROPIC = True
-except ImportError:
-    HAS_ANTHROPIC = False
 
 BEIJING_TZ = timezone(timedelta(hours=8))
 
@@ -191,28 +185,37 @@ REPORT_PROMPT = """你是一名政策分析助手，需要基于以下搜索数�
 }}"""
 
 
-def call_claude(raw_data: str, today: datetime) -> dict:
-    """调用 Claude API 生成报告 JSON"""
-    if not HAS_ANTHROPIC:
-        raise RuntimeError("anthropic 未安装，请 pip install anthropic")
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
+def call_deepseek(raw_data: str, today: datetime) -> dict:
+    """调用 DeepSeek API 生成报告 JSON（兼容 OpenAI 格式）"""
+    api_key = os.environ.get("DEEPSEEK_API_KEY")
     if not api_key:
-        raise RuntimeError("未设置环境变量 ANTHROPIC_API_KEY")
+        raise RuntimeError("未设置环境变量 DEEPSEEK_API_KEY")
 
-    client = anthropic.Anthropic(api_key=api_key)
     date_str = today.strftime("%Y-%m-%d")
-
     prompt = REPORT_PROMPT.format(raw_data=raw_data[:12000], date_str=date_str)
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "model": "deepseek-chat",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 4096,
+        "temperature": 0.3,
+    }
 
     # 最多重试 2 次
     for attempt in range(1, 3):
         try:
-            response = client.messages.create(
-                model="claude-opus-4-5",
-                max_tokens=4096,
-                messages=[{"role": "user", "content": prompt}],
+            resp = requests.post(
+                "https://api.deepseek.com/chat/completions",
+                headers=headers,
+                json=payload,
+                timeout=120,
             )
-            text = response.content[0].text.strip()
+            resp.raise_for_status()
+            text = resp.json()["choices"][0]["message"]["content"].strip()
             break
         except Exception as e:
             safe_print(f"  [!] API 调用失败（第 {attempt} 次）: {e}")
@@ -220,8 +223,7 @@ def call_claude(raw_data: str, today: datetime) -> dict:
                 raise
             time.sleep(5)
 
-    # 提取 JSON
-    # 先尝试 ```json 代码块
+    # 提取 JSON（去掉 markdown 代码块包裹）
     m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
     if m:
         text = m.group(1)
@@ -230,14 +232,14 @@ def call_claude(raw_data: str, today: datetime) -> dict:
         if m:
             text = m.group(1)
 
-    # 找到最外层 { }
+    # 截取最外层 { }
     start = text.find("{")
     end = text.rfind("}") + 1
     if 0 <= start < end:
         text = text[start:end]
 
     data = json.loads(text)
-    data["date"] = date_str
+    data["date"] = today.strftime("%Y-%m-%d")
     data["title"] = "数据和信息化政策日报"
     return data
 
@@ -343,8 +345,8 @@ def main():
     safe_print("\n[1/3] 采集数据...")
     raw_data = collect_all_data(today)
 
-    safe_print("\n[2/3] Claude API 生成报告...")
-    data = call_claude(raw_data, today)
+    safe_print("\n[2/3] DeepSeek API 生成报告...")
+    data = call_deepseek(raw_data, today)
 
     safe_print("\n[3/3] 保存文件...")
     save_reports(data)
