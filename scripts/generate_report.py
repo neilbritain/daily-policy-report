@@ -1,276 +1,355 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+"""
+每日政策报告生成脚本 v3.0
+搜索引擎抓取 + Claude API 生成真实内容
+"""
+import os
 import json
+import re
+import time
+import requests
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-# 日本标准时间 JST = UTC+9（与北京时间相差1小时，每天7:00 JST发布）
-JST = timezone(timedelta(hours=9))
-BEIJING_TZ = JST  # 用日本时间作为报告日期基准
+try:
+    from bs4 import BeautifulSoup
+    HAS_BS4 = True
+except ImportError:
+    HAS_BS4 = False
 
-def create_report_content():
-    today = datetime.now(BEIJING_TZ)
-    date_str = today.strftime("%Y-%m-%d")
-    return {
-        "date": date_str,
-        "title": "数据和信息化政策日报",
-        "policies_24h": [
-            # 算力
-            {
-                "title": "全国一体化算力网络国家枢纽节点建设推进方案",
-                "doc_number": "发改高技〔2026〕89号",
-                "institution": "国家发展和改革委员会、国家数据局",
-                "date": date_str,
-                "url": "https://www.ndrc.gov.cn/xxgk/zcfb/",
-                "summary": "推进八大算力枢纽节点互联互通，建立跨区域算力供需匹配平台，优化算力资源统一调度机制，提升算力基础设施整体利用效率。"
-            },
-            # 数据
-            {
-                "title": "数据要素流通标准体系建设行动方案",
-                "doc_number": "国标委联〔2026〕12号",
-                "institution": "国家标准化管理委员会、国家数据局",
-                "date": date_str,
-                "url": "https://www.nda.gov.cn/sjj/zcfg/",
-                "summary": "部署数据要素流通领域标准研制，重点推进数据格式、接口协议、质量评估、安全分级等基础标准，构建互联互通的数据流通标准体系。"
-            },
-            # 网络
-            {
-                "title": "互联网数据中心安全管理规定",
-                "doc_number": "工信部网安〔2026〕22号",
-                "institution": "工业和信息化部",
-                "date": date_str,
-                "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html",
-                "summary": "规范互联网数据中心安全管理，要求运营商落实等级保护制度，加强机房物理安全、网络边界防护和数据存储安全的全面管控。"
-            },
-            # 算法
-            {
-                "title": "生成式人工智能服务管理办法（修订版）",
-                "doc_number": "网信办〔2026〕15号",
-                "institution": "国家互联网信息办公室",
-                "date": date_str,
-                "url": "https://www.cac.gov.cn/hjlyj/index.htm",
-                "summary": "更新生成式AI服务监管要求，新增大模型安全评估义务、内容溯源机制、深度合成内容标注管理等规定，强化全流程监管。"
-            },
-            # 信息化
-            {
-                "title": "数字政府建设2026年重点工作推进方案",
-                "doc_number": "国办发〔2026〕21号",
-                "institution": "国务院办公厅",
-                "date": date_str,
-                "url": "https://www.gov.cn/zhengce/zhengceku/index.htm",
-                "summary": "部署政务数据共享开放、一网通办深化、政务云安全建设等年度重点工作，推动数字政府建设提质增效，提升政务服务数字化水平。"
-            },
-            # 国际
-            {
-                "title": "经合组织人工智能原则（2026年更新版）",
-                "doc_number": "OECD AI Principles 2026 Update",
-                "institution": "经济合作与发展组织（OECD）",
-                "date": date_str,
-                "url": "https://oecd.ai/en/ai-principles",
-                "summary": "OECD更新《经合组织人工智能原则（2026年更新版）》，新增针对生成式AI的透明度和问责制要求，强调AI系统全生命周期风险管理，对各成员国AI治理政策具有重要参考价值。"
-            }
-        ],
-        "policies_1month": [
-            # 算力
-            {
-                "title": "算电协同高质量发展行动方案",
-                "doc_number": "发改高技〔2026〕156号",
-                "institution": "国家发展和改革委员会、工业和信息化部、国家能源局、国家数据局",
-                "date": (today - timedelta(days=20)).strftime("%Y-%m-%d"),
-                "url": "https://www.ndrc.gov.cn/xxgk/zcfb/",
-                "summary": "推进人工智能与能源双向赋能，构建绿色可持续的算力基础设施体系，推动算力与电力协同规划、联合调度。"
-            },
-            # 数据
-            {
-                "title": "推进数据要素市场化配置改革实施方案",
-                "doc_number": "数局发〔2026〕3号",
-                "institution": "国家数据局、国家发展和改革委员会",
-                "date": (today - timedelta(days=15)).strftime("%Y-%m-%d"),
-                "url": "https://www.nda.gov.cn/sjj/zcfg/",
-                "summary": "推动数据领域国家标准发布，建立数据质量评估体系，推进数据要素市场化配置，促进数据资源向数据资产转化。"
-            },
-            # 网络
-            {
-                "title": "中华人民共和国网络安全法（2025年修订版）",
-                "doc_number": "中华人民共和国主席令第XX号",
-                "institution": "全国人民代表大会常务委员会",
-                "date": (today - timedelta(days=30)).strftime("%Y-%m-%d"),
-                "url": "https://www.npc.gov.cn/npc/c2/c30834/",
-                "summary": "修订后的《中华人民共和国网络安全法（2025年修订版）》正式实施，新增人工智能治理条款，提高网络安全违法法律责任。"
-            },
-            # 算法
-            {
-                "title": "互联网信息服务算法推荐管理规定（2026年修订）",
-                "doc_number": "网信办〔2026〕5号",
-                "institution": "国家互联网信息办公室、工业和信息化部",
-                "date": (today - timedelta(days=25)).strftime("%Y-%m-%d"),
-                "url": "https://www.cac.gov.cn/hjlyj/index.htm",
-                "summary": "修订《互联网信息服务算法推荐管理规定（2026年修订）》，新增用户算法解释权和拒绝权，要求平台建立算法透明度报告制度，强化对算法歧视和滥用行为的监管。"
-            },
-            # 信息化
-            {
-                "title": "新型工业化推进信息化建设工作方案",
-                "doc_number": "工信部规〔2026〕33号",
-                "institution": "工业和信息化部",
-                "date": (today - timedelta(days=18)).strftime("%Y-%m-%d"),
-                "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html",
-                "summary": "推进新型工业化与信息化深度融合，部署工业互联网、工业软件、工业大数据等重点领域建设任务，推动制造业数字化转型升级。"
-            },
-            # 国际
-            {
-                "title": "全球数字契约实施框架",
-                "doc_number": "A/RES/79/1",
-                "institution": "联合国大会（UN General Assembly）",
-                "date": (today - timedelta(days=10)).strftime("%Y-%m-%d"),
-                "url": "https://www.un.org/techenvoy/global-digital-compact",
-                "summary": "《全球数字契约实施框架》正式生效，确立数据跨境流动、算法透明度、数字公共基础设施等国际规则，对各成员国数字治理政策制定具有重要参考价值。"
-            }
-        ],
-        "trends": [
-            "算力供需格局加速重塑。国内《全国一体化算力网络国家枢纽节点建设推进方案》落地推进跨区域算力调度；国际方面，美国、欧盟相继出台算力补贴政策，全球算力争夺已成大国博弈新战场。",
-            "数据要素市场化配置提速。《数据要素流通标准体系建设行动方案》部署标准研制；欧盟《数据法》实施效果持续显现，数据跨境流动规则博弈加剧，企业合规成本显著上升。",
-            "网络安全监管全球同步收紧。国内《中华人民共和国网络安全法（2025年修订版）》落地执法；美欧持续强化关键信息基础设施保护，网络安全国际合作与规则博弈并行深化。",
-            "算法治理进入精细化阶段。《互联网信息服务算法推荐管理规定（2026年修订）》强化用户权益保护；《经合组织人工智能原则（2026年更新版）》新增生成式AI问责要求，算法透明度成全球共同议题。",
-            "信息化与产业融合提速。《新型工业化推进信息化建设工作方案》推动两化深度融合；国际方面，德国工业4.0升级、美国先进制造战略相继推进，数字制造竞争格局加速分化。",
-            "国际数字治理多边规则加速构建。《全球数字契约实施框架》生效确立多边规则基础；G7、G20数字议题主导权争夺激烈，发展中国家话语权诉求持续增强，多元化数字治理格局正在形成。"
-        ]
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
+BEIJING_TZ = timezone(timedelta(hours=8))
+
+# ──────────────────────────────────────────────
+# 1. 数据采集
+# ──────────────────────────────────────────────
+
+def safe_print(msg: str):
+    try:
+        print(msg)
+    except UnicodeEncodeError:
+        print(msg.encode("utf-8", "replace").decode("ascii", "replace"))
+
+
+def search_duckduckgo(query: str, max_results: int = 6) -> str:
+    """DuckDuckGo HTML 搜索（无需 API Key）"""
+    if not HAS_BS4:
+        return f"[bs4 未安装，跳过搜索: {query}]"
+
+    import urllib.parse
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
+            "Chrome/122.0.0.0 Safari/537.36"
+        ),
+        "Accept-Language": "zh-CN,zh;q=0.9",
     }
+    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}&kl=cn-zh"
+    try:
+        r = requests.get(url, headers=headers, timeout=20)
+        soup = BeautifulSoup(r.text, "html.parser")
+        items = []
+        for div in soup.select(".result")[:max_results]:
+            title = div.select_one(".result__a")
+            snippet = div.select_one(".result__snippet")
+            link = div.select_one(".result__url")
+            if title:
+                t = title.get_text(strip=True)
+                s = snippet.get_text(strip=True) if snippet else ""
+                u = link.get_text(strip=True) if link else ""
+                items.append(f"· {t}\n  {u}\n  {s}")
+        return "\n\n".join(items) if items else "(未找到结果)"
+    except Exception as e:
+        return f"(搜索异常: {e})"
 
-def validate_report(report_data):
-    """校对报告内容：检查日期合理性和链接完整性"""
-    today = datetime.now(BEIJING_TZ).date()
-    warnings = []
 
-    checks = [
-        ("过去24小时", report_data['policies_24h'], 3),    # 允许3天内
-        ("过去一个月", report_data['policies_1month'], 35), # 允许35天内
+def scrape_gov_news(today: datetime) -> str:
+    """抓取主要政府官网新闻列表"""
+    if not HAS_BS4:
+        return ""
+
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; PolicyMonitor/3.0)",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "zh-CN,zh;q=0.9",
+    }
+    sources = [
+        {
+            "name": "国家数据局",
+            "url": "https://www.nda.gov.cn/sjj/zcfg/",
+            "base": "https://www.nda.gov.cn",
+        },
+        {
+            "name": "工业和信息化部",
+            "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html",
+            "base": "https://www.miit.gov.cn",
+        },
+        {
+            "name": "国家互联网信息办公室",
+            "url": "https://www.cac.gov.cn/hjlyj/index.htm",
+            "base": "https://www.cac.gov.cn",
+        },
     ]
-    for section_name, policies, max_days in checks:
-        for p in policies:
-            try:
-                pub_date = datetime.strptime(p['date'], '%Y-%m-%d').date()
-                days_ago = (today - pub_date).days
-                if pub_date > today:
-                    warnings.append(f"[日期超前] 【{section_name}】{p['title']}: {p['date']}")
-                elif days_ago > max_days:
-                    warnings.append(f"[日期偏早] 【{section_name}】{p['title']}: {p['date']} (距今{days_ago}天)")
-            except ValueError:
-                warnings.append(f"[日期格式错误] {p['title']}: {p['date']}")
-            if not p.get('url'):
-                warnings.append(f"[缺少链接] {p['title']}")
-            if not p.get('doc_number'):
-                warnings.append(f"[缺少文号] {p['title']}")
-
-    def safe_print(msg):
+    results = []
+    keywords = ("通知", "规定", "办法", "方案", "意见", "规划", "条例", "政策", "标准")
+    for src in sources:
         try:
-            print(msg)
-        except UnicodeEncodeError:
-            print(msg.encode('utf-8', errors='replace').decode('ascii', errors='replace'))
+            r = requests.get(src["url"], headers=headers, timeout=15)
+            r.encoding = r.apparent_encoding or "utf-8"
+            soup = BeautifulSoup(r.text, "html.parser")
+            items = []
+            for a in soup.find_all("a", href=True):
+                text = a.get_text(strip=True)
+                href = a["href"]
+                if len(text) > 8 and any(kw in text for kw in keywords):
+                    if href.startswith("/"):
+                        href = src["base"] + href
+                    items.append(f"  - {text} | {href}")
+            if items:
+                results.append(f"【{src['name']}】\n" + "\n".join(items[:8]))
+        except Exception as e:
+            results.append(f"【{src['name']}】抓取失败: {e}")
+    return "\n\n".join(results)
 
-    if warnings:
-        safe_print("[!] Validation warnings:")
-        for w in warnings:
-            safe_print(f"  {w}")
+
+def collect_all_data(today: datetime) -> str:
+    """汇总所有搜索和抓取结果"""
+    ym = today.strftime("%Y年%m月")
+    ymd = today.strftime("%Y年%m月%d日")
+
+    # 多关键词搜索
+    queries = [
+        f"国务院 国家数据局 工信部 网信办 最新政策通知 {ym}",
+        f"算力网络 数据要素 网络安全 新规 {ym}",
+        f"数字政府 信息化建设 数据治理 政策 {ym}",
+        f"site:gov.cn 数据 算力 通知 {ym}",
+    ]
+
+    parts = [f"今天是 {ymd}。\n"]
+
+    safe_print("  ▸ 搜索政策关键词...")
+    for i, q in enumerate(queries, 1):
+        safe_print(f"    [{i}/{len(queries)}] {q[:50]}")
+        result = search_duckduckgo(q)
+        parts.append(f"── 搜索「{q[:40]}」──\n{result}")
+        time.sleep(2)
+
+    safe_print("  ▸ 抓取政府官网...")
+    gov_text = scrape_gov_news(today)
+    if gov_text:
+        parts.append(f"── 官网抓取 ──\n{gov_text}")
+
+    return "\n\n".join(parts)
+
+
+# ──────────────────────────────────────────────
+# 2. Claude API 生成报告
+# ──────────────────────────────────────────────
+
+REPORT_PROMPT = """你是一名政策分析助手，需要基于以下搜索数据生成结构化政策日报。
+
+{raw_data}
+
+要求：
+1. 优先使用搜索数据中提到的真实政策，不虚构任何文号或内容
+2. 如某条搜索数据不够详细，可基于确实存在的近期政策补充，但须诚实注明"待核实"
+3. 按重要性排序：国务院 > 部委（工信部/网信办/发改委/国家数据局） > 省市
+4. policies_24h 填近 72 小时内发布的政策（4~6 条）
+5. policies_1month 填近 30 天内发布的政策（4~6 条）
+6. trends 需基于数据分析，每条 80 字以内，共 6 条
+7. 所有日期格式严格为 YYYY-MM-DD，今天是 {date_str}
+
+仅返回如下 JSON（不加 markdown 代码块）：
+{{
+  "policies_24h": [
+    {{
+      "title": "政策标题（不含书名号）",
+      "doc_number": "发文字号（无则填暂无）",
+      "institution": "发布机构全称",
+      "date": "YYYY-MM-DD",
+      "url": "官方链接（无则填空字符串）",
+      "summary": "核心内容，50 字以内"
+    }}
+  ],
+  "policies_1month": [
+    {{同上格式，date 为近 30 天内}}
+  ],
+  "trends": [
+    "趋势 1：...",
+    "趋势 2：...",
+    "趋势 3：...",
+    "趋势 4：...",
+    "趋势 5：...",
+    "趋势 6：..."
+  ]
+}}"""
+
+
+def call_claude(raw_data: str, today: datetime) -> dict:
+    """调用 Claude API 生成报告 JSON"""
+    if not HAS_ANTHROPIC:
+        raise RuntimeError("anthropic 未安装，请 pip install anthropic")
+    api_key = os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise RuntimeError("未设置环境变量 ANTHROPIC_API_KEY")
+
+    client = anthropic.Anthropic(api_key=api_key)
+    date_str = today.strftime("%Y-%m-%d")
+
+    prompt = REPORT_PROMPT.format(raw_data=raw_data[:12000], date_str=date_str)
+
+    # 最多重试 2 次
+    for attempt in range(1, 3):
+        try:
+            response = client.messages.create(
+                model="claude-opus-4-5",
+                max_tokens=4096,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            text = response.content[0].text.strip()
+            break
+        except Exception as e:
+            safe_print(f"  [!] API 调用失败（第 {attempt} 次）: {e}")
+            if attempt == 2:
+                raise
+            time.sleep(5)
+
+    # 提取 JSON
+    # 先尝试 ```json 代码块
+    m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+    if m:
+        text = m.group(1)
     else:
-        safe_print("[OK] Validation passed")
-    return warnings
+        m = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+        if m:
+            text = m.group(1)
 
-def render_policies(policies):
-    """公众号标准格式：无背景色，纯文字流，虚线分隔"""
+    # 找到最外层 { }
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if 0 <= start < end:
+        text = text[start:end]
+
+    data = json.loads(text)
+    data["date"] = date_str
+    data["title"] = "数据和信息化政策日报"
+    return data
+
+
+# ──────────────────────────────────────────────
+# 3. HTML 渲染
+# ──────────────────────────────────────────────
+
+def render_policies(policies: list) -> str:
     html = ""
     for p in policies:
-        url = p.get('url', '')
+        url = p.get("url", "")
         url_html = (
-            f'<p style="font-size:12px;color:#bbb;margin:8px 0 0 0;word-break:break-all;line-height:1.5;">'
+            f'<p style="font-size:12px;color:#bbb;margin:8px 0 0;word-break:break-all;">'
             f'<a href="{url}" style="color:#bbb;text-decoration:none;">{url}</a></p>'
-        ) if url else ''
+        ) if url else ""
         html += f"""
-        <div style="margin-bottom:0;padding:20px 0;border-bottom:1px dashed #ddd;">
-            <p style="font-size:17px;font-weight:bold;color:#1a1a1a;margin:0 0 6px 0;line-height:1.5;">《{p['title']}》</p>
-            <p style="font-size:13px;color:#999;margin:0 0 12px 0;line-height:1.6;">{p.get('doc_number','暂无')} &nbsp;｜&nbsp; {p['institution']} &nbsp;｜&nbsp; {p['date']}</p>
-            <p style="font-size:15px;color:#333;margin:0;line-height:2.0;">{p['summary']}</p>
-            {url_html}
-        </div>"""
+<div style="padding:20px 0;border-bottom:1px dashed #ddd;">
+  <p style="font-size:17px;font-weight:bold;color:#1a1a1a;margin:0 0 6px;">《{p["title"]}》</p>
+  <p style="font-size:13px;color:#999;margin:0 0 12px;">{p.get("doc_number","暂无")} ｜ {p["institution"]} ｜ {p["date"]}</p>
+  <p style="font-size:15px;color:#333;margin:0;line-height:2.0;">{p["summary"]}</p>
+  {url_html}
+</div>"""
     return html
 
-def save_reports(report_data):
+
+def save_reports(data: dict):
     report_dir = Path("reports")
     report_dir.mkdir(exist_ok=True)
+    date = data["date"]
+    base_url = "https://neilbritain.github.io/daily-policy-report"
 
-    with open(report_dir / "latest.json", "w", encoding="utf-8") as f:
-        json.dump(report_data, f, ensure_ascii=False, indent=2)
-    with open(report_dir / f"report-{report_data['date']}.json", "w", encoding="utf-8") as f:
-        json.dump(report_data, f, ensure_ascii=False, indent=2)
+    # JSON
+    for path in [report_dir / "latest.json", report_dir / f"report-{date}.json"]:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False, indent=2)
 
+    # 趋势段落
     nums = ["①", "②", "③", "④", "⑤", "⑥"]
     trends_html = "".join(
-        f'<p style="font-size:15px;color:#333;line-height:2.0;margin:0 0 16px 0;">'
+        f'<p style="font-size:15px;color:#333;line-height:2.0;margin:0 0 16px;">'
         f'<strong style="color:#5b6de4;font-size:16px;">{nums[i]}</strong>&emsp;{t}</p>'
-        for i, t in enumerate(report_data['trends'])
+        for i, t in enumerate(data.get("trends", []))
     )
 
-    base_url = "https://neilbritain.github.io/daily-policy-report"
-    report_html_url = f"{base_url}/reports/report-{report_data['date']}.html"
-    report_docx_url = f"{base_url}/reports/report-{report_data['date']}.docx"
-
-    html_content = f"""<!DOCTYPE html>
+    html = f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>政策日报 - {report_data['date']}</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>政策日报 - {date}</title>
 </head>
-<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;font-size:15px;line-height:1.8;color:#333;background:#e8e8e8;margin:0;padding:20px;">
-
+<body style="font-family:'Microsoft YaHei','PingFang SC',Arial,sans-serif;background:#e8e8e8;margin:0;padding:20px;">
 <div style="max-width:680px;margin:0 auto;background:#fff;padding:36px 28px;">
 
-    <!-- 返回 -->
-    <p style="margin:0 0 24px 0;font-size:13px;color:#bbb;">
-        <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a>
-    </p>
+  <p style="margin:0 0 24px;font-size:13px;">
+    <a href="../index.html" style="color:#5b6de4;text-decoration:none;">← 返回首页</a>
+  </p>
 
-    <!-- 标题 -->
-    <p style="font-size:26px;font-weight:bold;color:#111;text-align:center;margin:0 0 8px 0;line-height:1.3;">数据和信息化政策日报</p>
-    <p style="font-size:14px;color:#bbb;text-align:center;margin:0 0 4px 0;">{report_data['date']} &nbsp;·&nbsp; 数据 · 算力 · 信息化</p>
-    <p style="font-size:12px;color:#ccc;text-align:center;margin:0 0 36px 0;">
-        <a href="{report_html_url}" style="color:#5b6de4;text-decoration:none;">网页版链接</a>
-        &nbsp;&nbsp;｜&nbsp;&nbsp;
-        <a href="{report_docx_url}" style="color:#5b6de4;text-decoration:none;">下载 Word 版</a>
-    </p>
+  <p style="font-size:26px;font-weight:bold;color:#111;text-align:center;margin:0 0 8px;">{data["title"]}</p>
+  <p style="font-size:14px;color:#bbb;text-align:center;margin:0 0 4px;">{date} · 数据 · 算力 · 信息化</p>
+  <p style="font-size:12px;color:#ccc;text-align:center;margin:0 0 36px;">
+    <a href="{base_url}/reports/report-{date}.html" style="color:#5b6de4;text-decoration:none;">网页版链接</a>
+    &nbsp;｜&nbsp;
+    <a href="{base_url}/reports/report-{date}.docx" style="color:#5b6de4;text-decoration:none;">下载 Word 版</a>
+  </p>
 
-    <!-- 一、24小时 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:0 0 4px 0;letter-spacing:1px;">一、过去 24 小时关键政策</p>
-    {render_policies(report_data['policies_24h'])}
+  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:0 0 4px;letter-spacing:1px;">一、过去 24 小时关键政策</p>
+  {render_policies(data.get("policies_24h", []))}
 
-    <!-- 二、一个月 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 4px 0;letter-spacing:1px;">二、过去一个月主要政策动向</p>
-    {render_policies(report_data['policies_1month'])}
+  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 4px;letter-spacing:1px;">二、过去一个月主要政策动向</p>
+  {render_policies(data.get("policies_1month", []))}
 
-    <!-- 三、趋势 -->
-    <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 20px 0;letter-spacing:1px;">三、未来趋势判断</p>
-    {trends_html}
+  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 20px;letter-spacing:1px;">三、未来趋势判断</p>
+  {trends_html}
 
-    <!-- 页脚 -->
-    <p style="border-top:1px solid #eee;margin-top:36px;padding-top:16px;font-size:12px;color:#ccc;text-align:center;line-height:2.0;">
-        每天早上 6:00 自动更新<br>
-        <a href="{base_url}" style="color:#5b6de4;text-decoration:none;">{base_url}</a><br>
-        <a href="../index.html" style="color:#bbb;text-decoration:none;">← 返回首页</a>
-    </p>
+  <p style="border-top:1px solid #eee;margin-top:36px;padding-top:16px;font-size:12px;color:#ccc;text-align:center;line-height:2.0;">
+    每天早上 6:00 自动更新 · 由 Claude AI 生成<br>
+    <a href="{base_url}" style="color:#5b6de4;text-decoration:none;">{base_url}</a>
+  </p>
 
 </div>
 </body>
 </html>"""
 
-    with open(report_dir / "latest.html", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    with open(report_dir / f"report-{report_data['date']}.html", "w", encoding="utf-8") as f:
-        f.write(html_content)
-    print(f"OK: {report_data['date']}")
+    for path in [report_dir / "latest.html", report_dir / f"report-{date}.html"]:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html)
+
+    safe_print(f"[OK] 报告已保存: {date}")
+
+
+# ──────────────────────────────────────────────
+# 4. 入口
+# ──────────────────────────────────────────────
 
 def main():
-    report_data = create_report_content()
-    validate_report(report_data)
-    save_reports(report_data)
+    today = datetime.now(BEIJING_TZ)
+    safe_print(f"\n{'='*50}")
+    safe_print(f"  政策日报生成  {today.strftime('%Y-%m-%d %H:%M')} CST")
+    safe_print(f"{'='*50}")
+
+    safe_print("\n[1/3] 采集数据...")
+    raw_data = collect_all_data(today)
+
+    safe_print("\n[2/3] Claude API 生成报告...")
+    data = call_claude(raw_data, today)
+
+    safe_print("\n[3/3] 保存文件...")
+    save_reports(data)
+    safe_print("\n完成！")
+
 
 if __name__ == "__main__":
     main()
