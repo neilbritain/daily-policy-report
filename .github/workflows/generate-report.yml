@@ -2,11 +2,17 @@ name: 每日政策报告生成和发布
 
 on:
   schedule:
-    # UTC 22:00 = 北京时间次日 06:00
+    # UTC 22:00 = 北京时间 06:00
     - cron: '0 22 * * *'
-  workflow_dispatch:       # 允许手动触发（Actions 页面一键运行）
+  workflow_dispatch:  # 手动触发
+  push:
+    branches: [main]
+    paths:            # 只有这些文件变化才触发（避免无限循环）
+      - 'reports/**'
+      - 'index.html'
+      - 'scripts/**'
+      - '.github/workflows/**'
 
-# 需要写权限才能 commit 回仓库
 permissions:
   contents: write
   pages: write
@@ -23,75 +29,83 @@ jobs:
       cancel-in-progress: false
 
     steps:
-      # ── 1. 检出代码 ──────────────────────────────
+      # ── 1. 检出 ──────────────────────────────────
       - name: 检出代码
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0
 
-      # ── 2. Python 环境 ───────────────────────────
+      # ── 2. 环境 ──────────────────────────────────
       - name: 设置 Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
       - name: 安装依赖
-        run: |
-          pip install --upgrade pip
-          pip install requests beautifulsoup4 python-dateutil python-docx
+        run: pip install --upgrade pip requests beautifulsoup4 python-dateutil python-docx
 
-      # ── 3. 生成报告 ──────────────────────────────
-      # 优先用 DEEPSEEK_API_KEY，没有则自动用 ANTHROPIC_API_KEY
+      # ── 3. 生成报告（允许失败，不中断后续部署）──
       - name: 生成 HTML/JSON 报告
+        id: generate
+        continue-on-error: true   # ← 生成失败时继续部署已有报告
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          DEEPSEEK_API_KEY:  ${{ secrets.DEEPSEEK_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/generate_report.py
 
       - name: 生成 Word 报告
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
         run: python scripts/generate_word_report.py
 
-      # ── 4. 提交报告回仓库 ────────────────────────
+      # ── 4. 如有新报告则 commit 回仓库 ────────────
       - name: 提交报告到仓库
+        if: steps.generate.outcome == 'success'
+        continue-on-error: true
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add reports/
           if git diff --cached --quiet; then
-            echo "本次无新内容，跳过提交"
+            echo "无新内容，跳过提交"
           else
             DATE=$(date +'%Y-%m-%d')
             git commit -m "[auto] ${DATE} 政策日报自动更新"
             git push
           fi
 
-      # ── 5. 部署到 GitHub Pages ───────────────────
+      # ── 5. 部署到 Pages（无论生成成功与否都执行）─
       - name: 准备 Pages 目录
+        if: always()              # ← 始终执行
         run: |
           mkdir -p public
           cp index.html public/
           cp -r reports public/ 2>/dev/null || true
+          echo "public 目录内容:"
+          ls -la public/reports/ | tail -5
 
       - name: 上传 Pages 构件
+        if: always()
         uses: actions/upload-pages-artifact@v3
         with:
           path: ./public
 
       - name: 部署到 GitHub Pages
+        if: always()
         id: deployment
         uses: actions/deploy-pages@v4
 
       # ── 6. 摘要 ──────────────────────────────────
-      - name: 生成运行摘要
+      - name: 运行摘要
         if: always()
         run: |
-          echo "## 📊 政策日报 - $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| 文件 | 状态 |" >> $GITHUB_STEP_SUMMARY
+          GEN="${{ steps.generate.outcome }}"
+          echo "## 政策日报 - $(date +'%Y-%m-%d')" >> $GITHUB_STEP_SUMMARY
+          echo "| 步骤 | 结果 |" >> $GITHUB_STEP_SUMMARY
           echo "|------|------|" >> $GITHUB_STEP_SUMMARY
-          [ -f reports/latest.json  ] && echo "| latest.json  | ✅ |" >> $GITHUB_STEP_SUMMARY || echo "| latest.json  | ❌ |" >> $GITHUB_STEP_SUMMARY
-          [ -f reports/latest.html  ] && echo "| latest.html  | ✅ |" >> $GITHUB_STEP_SUMMARY || echo "| latest.html  | ❌ |" >> $GITHUB_STEP_SUMMARY
-          [ -f reports/latest.docx  ] && echo "| latest.docx  | ✅ |" >> $GITHUB_STEP_SUMMARY || echo "| latest.docx  | ❌ |" >> $GITHUB_STEP_SUMMARY
+          echo "| 报告生成 | $GEN |" >> $GITHUB_STEP_SUMMARY
+          [ -f reports/latest.json ] && echo "| latest.json  | ✅ |" >> $GITHUB_STEP_SUMMARY || echo "| latest.json  | ❌ |" >> $GITHUB_STEP_SUMMARY
+          [ -f reports/latest.html ] && echo "| latest.html  | ✅ |" >> $GITHUB_STEP_SUMMARY || echo "| latest.html  | ❌ |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "🌐 [查看网站](https://neilbritain.github.io/daily-policy-report)" >> $GITHUB_STEP_SUMMARY
