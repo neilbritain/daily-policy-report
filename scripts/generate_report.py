@@ -21,14 +21,21 @@ except ImportError:
 BEIJING_TZ = timezone(timedelta(hours=8))
 
 # ──────────────────────────────────────────────
-# 1. 数据采集
+# 0. 工具函数
 # ──────────────────────────────────────────────
+
+import sys
+import io
+
+# 强制 stdout 使用 UTF-8（Windows 兼容）
+if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 
 def safe_print(msg: str):
     try:
-        print(msg)
-    except UnicodeEncodeError:
-        print(msg.encode("utf-8", "replace").decode("ascii", "replace"))
+        print(msg, flush=True)
+    except Exception:
+        print(msg.encode("ascii", "replace").decode("ascii"), flush=True)
 
 
 def search_duckduckgo(query: str, max_results: int = 6) -> str:
@@ -127,14 +134,14 @@ def collect_all_data(today: datetime) -> str:
 
     parts = [f"今天是 {ymd}。\n"]
 
-    safe_print("  ▸ 搜索政策关键词...")
+    safe_print("  >搜索政策关键词...")
     for i, q in enumerate(queries, 1):
         safe_print(f"    [{i}/{len(queries)}] {q[:50]}")
         result = search_duckduckgo(q)
         parts.append(f"── 搜索「{q[:40]}」──\n{result}")
         time.sleep(2)
 
-    safe_print("  ▸ 抓取政府官网...")
+    safe_print("  >抓取政府官网...")
     gov_text = scrape_gov_news(today)
     if gov_text:
         parts.append(f"── 官网抓取 ──\n{gov_text}")
@@ -185,15 +192,49 @@ REPORT_PROMPT = """你是一名政策分析助手，需要基于以下搜索数�
 }}"""
 
 
-def call_deepseek(raw_data: str, today: datetime) -> dict:
-    """调用 DeepSeek API 生成报告 JSON（兼容 OpenAI 格式）"""
-    api_key = os.environ.get("DEEPSEEK_API_KEY")
-    if not api_key:
-        raise RuntimeError("未设置环境变量 DEEPSEEK_API_KEY")
-
+def call_llm_api(raw_data: str, today: datetime) -> dict:
+    """
+    调用大模型 API 生成报告 JSON
+    优先使用 DEEPSEEK_API_KEY，没有则自动切换到 ANTHROPIC_API_KEY
+    """
     date_str = today.strftime("%Y-%m-%d")
     prompt = REPORT_PROMPT.format(raw_data=raw_data[:12000], date_str=date_str)
 
+    deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+
+    if deepseek_key:
+        safe_print("  >使用 DeepSeek API")
+        text = _call_deepseek(deepseek_key, prompt)
+    elif anthropic_key:
+        safe_print("  >未找到 DEEPSEEK_API_KEY，切换到 Anthropic API")
+        text = _call_anthropic(anthropic_key, prompt)
+    else:
+        raise RuntimeError("未设置 DEEPSEEK_API_KEY 或 ANTHROPIC_API_KEY，至少需要其中一个")
+
+    # 提取 JSON（去掉 markdown 代码块包裹）
+    m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
+    if m:
+        text = m.group(1)
+    else:
+        m = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
+        if m:
+            text = m.group(1)
+
+    # 截取最外层 { }
+    start = text.find("{")
+    end = text.rfind("}") + 1
+    if 0 <= start < end:
+        text = text[start:end]
+
+    data = json.loads(text)
+    data["date"] = today.strftime("%Y-%m-%d")
+    data["title"] = "数据和信息化政策日报"
+    return data
+
+
+def _call_deepseek(api_key: str, prompt: str) -> str:
+    """DeepSeek Chat API（OpenAI 兼容格式）"""
     headers = {
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
@@ -204,21 +245,43 @@ def call_deepseek(raw_data: str, today: datetime) -> dict:
         "max_tokens": 4096,
         "temperature": 0.3,
     }
-
-    # 最多重试 2 次
     for attempt in range(1, 3):
         try:
             resp = requests.post(
                 "https://api.deepseek.com/chat/completions",
-                headers=headers,
-                json=payload,
-                timeout=120,
+                headers=headers, json=payload, timeout=120,
             )
             resp.raise_for_status()
-            text = resp.json()["choices"][0]["message"]["content"].strip()
-            break
+            return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
-            safe_print(f"  [!] API 调用失败（第 {attempt} 次）: {e}")
+            safe_print(f"  [!] DeepSeek 调用失败（第 {attempt} 次）: {e}")
+            if attempt == 2:
+                raise
+            time.sleep(5)
+
+
+def _call_anthropic(api_key: str, prompt: str) -> str:
+    """Anthropic Claude API"""
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    payload = {
+        "model": "claude-3-5-sonnet-20241022",
+        "max_tokens": 4096,
+        "messages": [{"role": "user", "content": prompt}],
+    }
+    for attempt in range(1, 3):
+        try:
+            resp = requests.post(
+                "https://api.anthropic.com/v1/messages",
+                headers=headers, json=payload, timeout=120,
+            )
+            resp.raise_for_status()
+            return resp.json()["content"][0]["text"].strip()
+        except Exception as e:
+            safe_print(f"  [!] Anthropic 调用失败（第 {attempt} 次）: {e}")
             if attempt == 2:
                 raise
             time.sleep(5)
@@ -345,8 +408,8 @@ def main():
     safe_print("\n[1/3] 采集数据...")
     raw_data = collect_all_data(today)
 
-    safe_print("\n[2/3] DeepSeek API 生成报告...")
-    data = call_deepseek(raw_data, today)
+    safe_print("\n[2/3] 调用大模型生成报告...")
+    data = call_llm_api(raw_data, today)
 
     safe_print("\n[3/3] 保存文件...")
     save_reports(data)

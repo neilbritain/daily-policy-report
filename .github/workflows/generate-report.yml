@@ -42,9 +42,11 @@ jobs:
           pip install requests beautifulsoup4 python-dateutil python-docx
 
       # ── 3. 生成报告 ──────────────────────────────
+      # 优先用 DEEPSEEK_API_KEY，没有则自动用 ANTHROPIC_API_KEY
       - name: 生成 HTML/JSON 报告
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: python scripts/generate_report.py
 
       - name: 生成 Word 报告
