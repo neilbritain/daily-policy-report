@@ -153,41 +153,52 @@ def collect_all_data(today: datetime) -> str:
 # 2. Claude API 生成报告
 # ──────────────────────────────────────────────
 
-REPORT_PROMPT = """你是一名政策分析助手，需要基于以下搜索数据生成结构化政策日报。
+REPORT_PROMPT = """你是一名严谨的政策分析助手，今天是 {date_str}。
+
+以下是从网络搜索到的原始数据：
 
 {raw_data}
 
-要求：
-1. 优先使用搜索数据中提到的真实政策，不虚构任何文号或内容
-2. 如某条搜索数据不够详细，可基于确实存在的近期政策补充，但须诚实注明"待核实"
-3. 按重要性排序：国务院 > 部委（工信部/网信办/发改委/国家数据局） > 省市
-4. policies_24h 填近 72 小时内发布的政策（4~6 条）
-5. policies_1month 填近 30 天内发布的政策（4~6 条）
-6. trends 需基于数据分析，每条 80 字以内，共 6 条
-7. 所有日期格式严格为 YYYY-MM-DD，今天是 {date_str}
+━━━ 严格要求（违反则整条删除，不得保留）━━━
 
-仅返回如下 JSON（不加 markdown 代码块）：
+【真实性】
+- 只能收录搜索数据中明确出现的政策，禁止根据"常识"或"推断"补充任何未在搜索结果中出现的政策
+- 文件字号（如"国办发〔2026〕15号"）必须来自搜索结果原文，搜索结果未提及字号时，doc_number 填"暂无"，禁止编造
+- 发文日期必须来自搜索结果，搜索结果未明确日期时，date 填报告日期 {date_str}，禁止推算或捏造
+
+【时效性】
+- policies_24h：仅收录发布日期在 {date_3d_ago} 之后的政策（即近 3 天内）
+- policies_1month：仅收录发布日期在 {date_30d_ago} 之后的政策（即近 30 天内）
+- 日期早于上述范围的政策一律移除，不得填入
+
+【URL】
+- 能找到来源链接则填写，找不到一律填空字符串 ""，禁止填写推测性链接
+
+【数量】
+- policies_24h：3~6 条（搜索结果不足时可少于 6 条，禁止凑数）
+- policies_1month：3~6 条（同上）
+- trends：基于已收录政策客观分析，共 6 条，每条 80 字以内
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+仅返回以下格式的 JSON，不加任何 markdown 代码块：
 {{
   "policies_24h": [
     {{
       "title": "政策标题（不含书名号）",
-      "doc_number": "发文字号（无则填暂无）",
+      "doc_number": "发文字号（来源中无字号则填暂无）",
       "institution": "发布机构全称",
       "date": "YYYY-MM-DD",
-      "url": "官方链接（无则填空字符串）",
-      "summary": "核心内容，50 字以内"
+      "url": "官方来源链接（无则填空字符串）",
+      "summary": "核心内容摘要，50 字以内，不得虚构"
     }}
   ],
   "policies_1month": [
-    {{同上格式，date 为近 30 天内}}
+    {{ 同上格式 }}
   ],
   "trends": [
-    "趋势 1：...",
-    "趋势 2：...",
-    "趋势 3：...",
-    "趋势 4：...",
-    "趋势 5：...",
-    "趋势 6：..."
+    "趋势 1：基于已收录政策的客观判断",
+    "趋势 2：", "趋势 3：", "趋势 4：", "趋势 5：", "趋势 6："
   ]
 }}"""
 
@@ -197,8 +208,15 @@ def call_llm_api(raw_data: str, today: datetime) -> dict:
     调用大模型 API 生成报告 JSON
     优先使用 DEEPSEEK_API_KEY，没有则自动切换到 ANTHROPIC_API_KEY
     """
-    date_str = today.strftime("%Y-%m-%d")
-    prompt = REPORT_PROMPT.format(raw_data=raw_data[:12000], date_str=date_str)
+    date_str    = today.strftime("%Y-%m-%d")
+    date_3d_ago  = (today - timedelta(days=3)).strftime("%Y-%m-%d")
+    date_30d_ago = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    prompt = REPORT_PROMPT.format(
+        raw_data     = raw_data[:12000],
+        date_str     = date_str,
+        date_3d_ago  = date_3d_ago,
+        date_30d_ago = date_30d_ago,
+    )
 
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
     anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
@@ -230,6 +248,48 @@ def call_llm_api(raw_data: str, today: datetime) -> dict:
     data = json.loads(text)
     data["date"] = today.strftime("%Y-%m-%d")
     data["title"] = "数据和信息化政策日报"
+
+    # ── 后处理：自动清理超期 / 日期异常条目 ──
+    data = _validate_dates(data, today)
+    return data
+
+
+def _validate_dates(data: dict, today: datetime) -> dict:
+    """
+    校验每条政策的日期合理性。
+    自动移除日期超前或超期的条目，控制台打印警告供人工核查。
+    """
+    cutoffs = {
+        "policies_24h":    timedelta(days=5),   # 宽松到 5 天（搜索有延迟）
+        "policies_1month": timedelta(days=35),  # 宽松到 35 天
+    }
+    today_date = today.date()
+
+    for key, max_delta in cutoffs.items():
+        original = data.get(key, [])
+        cleaned = []
+        for p in original:
+            raw_date = p.get("date", "")
+            try:
+                pub = datetime.strptime(raw_date, "%Y-%m-%d").date()
+            except ValueError:
+                safe_print(f"  [!] 日期格式异常，已移除: {p.get('title','?')} | date={raw_date}")
+                continue
+            if pub > today_date:
+                safe_print(f"  [!] 日期超前，已移除: {p.get('title','?')} | date={raw_date}")
+                continue
+            days_ago = (today_date - pub).days
+            if days_ago > max_delta.days:
+                safe_print(f"  [!] 日期超期({days_ago}天>限{max_delta.days}天)，已移除: "
+                           f"{p.get('title','?')} | date={raw_date}")
+                continue
+            cleaned.append(p)
+
+        removed = len(original) - len(cleaned)
+        if removed:
+            safe_print(f"  [校验] {key}: 移除 {removed} 条，保留 {len(cleaned)} 条")
+        data[key] = cleaned
+
     return data
 
 
