@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-每日政策报告生成脚本 v3.8
-DuckDuckGo + Bing + 12个官网抓取 + DeepSeek API
-覆盖：算力/AI/数据/算法/网络/信息化/数字化，允许知识库补充兜底
+每日政策报告生成脚本 v4.0
+DuckDuckGo + Bing + 百度 + 12个官网抓取 + DeepSeek API
+覆盖：算力/AI/数据/算法/网络/信息化/数字化
+地理范围：全国 + 辽宁/江苏/上海/广东/浙江重点省份 + 日美欧国际
 """
 import os
 import json
@@ -241,26 +242,45 @@ def collect_all_data(today: datetime) -> str:
     ym  = today.strftime("%Y年%m月")
     ymd = today.strftime("%Y年%m月%d日")
 
-    # ── 搜索查询 ──
+    year = today.strftime("%Y")
+
+    # ── 国家级搜索 ──
     ddg_queries = [
         "国务院 国家数据局 工信部 网信办 最新政策通知",
-        "算力 算力网络 东数西算 算力枢纽 政策",
+        "算力 东数西算 算力枢纽 智能计算 政策",
         "人工智能 大模型 生成式AI 监管 最新",
         "数据要素 数据安全 数据治理 数据资产 新规",
         "网络安全 等级保护 关键信息基础设施 最新规定",
         "数字政府 数字中国 信息化 政策",
         "数字化转型 工业互联网 数字经济 政策",
+        # 国际
+        f"Japan AI artificial intelligence policy {year}",
+        f"EU European AI Act data governance policy {year}",
+        f"US artificial intelligence data executive order {year}",
     ]
     bing_queries = [
         f"数据要素 算力 人工智能 政策 {ym} site:gov.cn",
         f"网络安全 信息化 数字化 规定 通知 {ym}",
         f"工业互联网 数字经济 算法 政策 {ym}",
+        f"Japan AI policy digital economy {year}",
+        f"EU AI Act GDPR digital data policy {year}",
     ]
     baidu_queries = [
+        # 国家级
         f"国家数据局 工信部 网信办 最新政策 {ym}",
         f"算力 人工智能 数据安全 政策文件 {ym} site:gov.cn",
         f"数字化转型 工业互联网 信息化 最新规定 {ym}",
         f"网络安全 数据要素 算法治理 通知 {ym}",
+        # 重点省份
+        f"辽宁 数字化 算力 人工智能 信息化 政策 {year}",
+        f"江苏 数字经济 信息化 人工智能 政策 {year}",
+        f"上海 数据 算力 人工智能 数字化 政策 {year}",
+        f"广东 数字化 人工智能 数据 政策 {year}",
+        f"浙江 数字政府 数据 信息化 人工智能 政策 {year}",
+        # 国际中文搜索
+        f"日本 人工智能 数字化 数据 政策 {year}",
+        f"欧盟 人工智能法案 数据治理 数字政策 {year}",
+        f"美国 人工智能 数据 监管 政策 {year}",
     ]
 
     parts = [f"今天是 {ymd}。以下为多渠道采集的原始政策信息：\n"]
@@ -306,33 +326,42 @@ def collect_all_data(today: datetime) -> str:
 # 2. Claude API 生成报告
 # ──────────────────────────────────────────────
 
-REPORT_PROMPT = """你是一名专注于中国政府政策的分析助手，今天是 {date_str}。
+REPORT_PROMPT = """你是一名政策分析助手，今天是 {date_str}，负责生成当日数字政策简报。
 
-以下是从 DuckDuckGo、Bing 及多个政府官网采集的原始数据：
+以下是从多渠道采集的原始数据：
 
 {raw_data}
 
-━━━ 收录范围（必须与以下主题之一相关，否则排除）━━━
-算力 · 智能计算 · 东数西算 · 算力枢纽 · 人工智能 · 大模型 · 生成式AI · 机器学习 · 数据要素 · 数据安全 · 数据治理 · 数据资产 · 数据跨境 · 算法治理 · 网络安全 · 等级保护 · 关键信息基础设施 · 信息化 · 数字政府 · 数字中国 · 数字经济 · 数字化转型 · 工业互联网 · 5G · 绿色算力 · 区块链 · 物联网 · 平台经济 · 隐私计算 · 云计算 · 大数据
+━━━ 主题范围（必须与以下主题之一相关，否则排除）━━━
+算力 · 智能计算 · 东数西算 · 人工智能 · 大模型 · 生成式AI · 数据要素 · 数据安全 · 数据治理 · 数据跨境 · 算法治理 · 网络安全 · 等级保护 · 关键信息基础设施 · 信息化 · 数字政府 · 数字中国 · 数字经济 · 数字化转型 · 工业互联网 · 5G · 区块链 · 云计算 · 大数据 · 平台经济
 
-不属于上述主题的政策（如民政、教育、农业、医疗、社保、劳动等）一律不收录。
+不属于上述主题的政策（如民政、教育、农业、医疗、社保、劳动）一律排除。
+
+━━━ 地理范围（兼顾以下来源）━━━
+【中国全国】国务院、国家数据局、工信部、网信办、发改委、科技部等
+【重点省市】辽宁、江苏、上海、广东、浙江（含省级政府、省数据局、省经信厅等机构）
+【国际】日本（デジタル庁、総務省）、美国（White House、FTC、NIST）、欧盟（EC、EDPB）及其他国家/地区的同类政策
 
 ━━━ 内容来源优先级 ━━━
-
-【第一优先】搜索结果和官网抓取中明确出现的政策（标题、字号、日期均来自原始数据）
-【第二优先】你已知的、在 {date_str} 前已公开发布的真实政策文件（知识库补充，date 填实际发布日期；doc_number 如不确定则填"暂无"）
-【禁止】编造不存在的政策标题、虚构文件字号、捏造发布日期
+【第一优先】搜索结果和官网中明确出现的政策
+【第二优先】你已知的、在 {date_str} 前已公开的真实政策（date 填实际发布日期，doc_number 不确定填"暂无"）
+【禁止】编造标题、虚构字号、捏造日期
 
 ━━━ 准确性要求 ━━━
-- 文件字号（如"国办发〔2026〕15号"）：来源原文有则填写，不确定则填"暂无"
-- 发布日期：来源有明确日期则用，否则根据你对该政策的了解填写，实在不确定填 {date_str}
-- URL：有真实链接则填，没有一律填空字符串 ""，禁止填推测性链接
-- summary：客观概括核心内容，50 字以内，不得添加无根据的推断
+- doc_number：来源有则填，不确定填"暂无"
+- date：来源有则用，否则用已知发布日期，实在不确定填 {date_str}
+- url：有真实链接则填，否则填""，禁止填推测性链接
+- summary：客观概括，40 字以内，不虚构
 
 ━━━ 时效性要求 ━━━
-- policies_24h：优先收录 {date_3d_ago} 之后发布的政策（近 3 天）；搜索无近期结果时，可放宽至近 30 天内最重要的政策
-- policies_1month：收录 {date_30d_ago} 之后发布的政策（近 30 天）；超过 60 天的条目一律不收录
-- 两个分区均要求 4~6 条；如确实找不到足够的本领域政策，宁可少于 4 条，也不得用无关领域或过期内容凑数
+- policies_24h：{date_3d_ago} 之后发布；无则放宽至近 14 天最重要政策；可含国际政策
+- policies_1month：{date_30d_ago} 之后；超过 60 天不收录；可含国际政策
+- policies_year：{date_year_start} 之后、{date_30d_ago} 之前（今年较重要的政策，避免与上方重复）；可含国际政策
+- 每栏 3~5 条；确实找不到则可少于 3 条，不得凑数
+- trends：基于所有收录政策做 6 条趋势判断，含国内外动向对比，每条 60 字以内
+
+━━━ 字数控制 ━━━
+全报告（所有 summary + trends 文字合计）不超过 2000 字。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -341,19 +370,19 @@ REPORT_PROMPT = """你是一名专注于中国政府政策的分析助手，今�
   "policies_24h": [
     {{
       "title": "政策标题（不含书名号）",
-      "doc_number": "发文字号（不确定填暂无）",
+      "doc_number": "发文字号或暂无",
       "institution": "发布机构全称",
       "date": "YYYY-MM-DD",
-      "url": "官方来源链接（无则填空字符串）",
-      "summary": "核心内容摘要，50 字以内"
+      "url": "来源链接或空字符串",
+      "summary": "核心内容，40字以内",
+      "region": "中国全国 / 辽宁 / 江苏 / 上海 / 广东 / 浙江 / 日本 / 美国 / 欧盟 / 其他"
     }}
   ],
-  "policies_1month": [
-    {{ 同上格式 }}
-  ],
+  "policies_1month": [ {{ 同上格式 }} ],
+  "policies_year":   [ {{ 同上格式 }} ],
   "trends": [
-    "趋势 1：基于已收录政策的客观判断（80字以内）",
-    "趋势 2：", "趋势 3：", "趋势 4：", "趋势 5：", "趋势 6："
+    "趋势1：...", "趋势2：...", "趋势3：...",
+    "趋势4：...", "趋势5：...", "趋势6：..."
   ]
 }}"""
 
@@ -363,14 +392,16 @@ def call_llm_api(raw_data: str, today: datetime) -> dict:
     调用大模型 API 生成报告 JSON
     优先使用 DEEPSEEK_API_KEY，没有则自动切换到 ANTHROPIC_API_KEY
     """
-    date_str    = today.strftime("%Y-%m-%d")
-    date_3d_ago  = (today - timedelta(days=3)).strftime("%Y-%m-%d")
-    date_30d_ago = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_str        = today.strftime("%Y-%m-%d")
+    date_3d_ago     = (today - timedelta(days=3)).strftime("%Y-%m-%d")
+    date_30d_ago    = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_year_start = today.strftime("%Y-01-01")
     prompt = REPORT_PROMPT.format(
-        raw_data     = raw_data[:12000],
-        date_str     = date_str,
-        date_3d_ago  = date_3d_ago,
-        date_30d_ago = date_30d_ago,
+        raw_data        = raw_data[:14000],
+        date_str        = date_str,
+        date_3d_ago     = date_3d_ago,
+        date_30d_ago    = date_30d_ago,
+        date_year_start = date_year_start,
     )
 
     deepseek_key = os.environ.get("DEEPSEEK_API_KEY")
@@ -418,30 +449,30 @@ def _validate_dates(data: dict, today: datetime) -> dict:
     - policies_24h 中超过 5 天的条目 → 自动移入 policies_1month
     - policies_1month 中超过 60 天的条目 → 移除
     """
-    today_date = today.date()
-    overflow_to_1month = []   # 从 policies_24h 溢出的条目
+    today_date  = today.date()
+    year_start  = today_date.replace(month=1, day=1)
+    overflow_to_1month = []
 
-    for key in ("policies_24h", "policies_1month"):
+    for key in ("policies_24h", "policies_1month", "policies_year"):
         original = data.get(key, [])
-        cleaned = []
+        cleaned  = []
         for p in original:
             raw_date = p.get("date", "")
             try:
                 pub = datetime.strptime(raw_date, "%Y-%m-%d").date()
             except ValueError:
-                safe_print(f"  [warn] 日期格式异常，修正为今天: {p.get('title','?')[:35]}")
+                safe_print(f"  [warn] 日期格式异常，修正: {p.get('title','?')[:35]}")
                 p["date"] = today.strftime("%Y-%m-%d")
                 cleaned.append(p)
                 continue
 
             if pub > today_date:
-                safe_print(f"  [!] 日期超前，移除: {p.get('title','?')[:35]} | {raw_date}")
+                safe_print(f"  [!] 日期超前，移除: {p.get('title','?')[:35]}")
                 continue
 
             days_ago = (today_date - pub).days
 
-            if key == "policies_24h" and days_ago > 5:
-                # 超过5天 → 移入 policies_1month（不删）
+            if key == "policies_24h" and days_ago > 14:
                 safe_print(f"  [move] 24h→1month ({days_ago}天): {p.get('title','?')[:35]}")
                 overflow_to_1month.append(p)
                 continue
@@ -450,16 +481,19 @@ def _validate_dates(data: dict, today: datetime) -> dict:
                 safe_print(f"  [!] 超期移除 ({days_ago}天): {p.get('title','?')[:35]}")
                 continue
 
-            cleaned.append(p)
+            if key == "policies_year" and pub < year_start:
+                safe_print(f"  [!] 非今年，移除: {p.get('title','?')[:35]}")
+                continue
 
+            cleaned.append(p)
         data[key] = cleaned
 
-    # 合并溢出条目到 policies_1month（去重）
-    existing_titles = {p["title"] for p in data.get("policies_1month", [])}
+    # 溢出条目合并到 policies_1month（去重）
+    existing = {p["title"] for p in data.get("policies_1month", [])}
     for p in overflow_to_1month:
-        if p["title"] not in existing_titles:
+        if p["title"] not in existing:
             data["policies_1month"].append(p)
-            existing_titles.add(p["title"])
+            existing.add(p["title"])
 
     return data
 
@@ -479,7 +513,7 @@ TOPIC_KEYWORDS = (
 
 def _filter_by_topic(data: dict) -> dict:
     """Python 层硬过滤：标题和摘要均不含主题关键词的条目直接移除"""
-    for key in ("policies_24h", "policies_1month"):
+    for key in ("policies_24h", "policies_1month", "policies_year"):
         original = data.get(key, [])
         filtered = []
         for p in original:
@@ -487,14 +521,14 @@ def _filter_by_topic(data: dict) -> dict:
             if any(kw in text for kw in TOPIC_KEYWORDS):
                 filtered.append(p)
             else:
-                safe_print(f"  [skip] 主题不符，已过滤: {p.get('title','?')[:40]}")
+                safe_print(f"  [skip] 主题不符: {p.get('title','?')[:40]}")
         data[key] = filtered
     return data
 
 
 def _resolve_baidu_urls(data: dict) -> dict:
     """把 JSON 中残留的 baidu.com/link 跳转链接解析为真实目标 URL"""
-    for key in ("policies_24h", "policies_1month"):
+    for key in ("policies_24h", "policies_1month", "policies_year"):
         for p in data.get(key, []):
             url = p.get("url", "")
             if url and "baidu.com/link" in url:
@@ -631,7 +665,10 @@ def save_reports(data: dict):
   <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 4px;letter-spacing:1px;">二、过去一个月主要政策动向</p>
   {render_policies(data.get("policies_1month", []))}
 
-  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 20px;letter-spacing:1px;">三、未来趋势判断</p>
+  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 4px;letter-spacing:1px;">三、今年以来主要政策</p>
+  {render_policies(data.get("policies_year", []))}
+
+  <p style="background:#5b6de4;color:#fff;font-size:16px;font-weight:bold;padding:11px 18px;margin:36px 0 20px;letter-spacing:1px;">四、未来趋势判断</p>
   {trends_html}
 
   <p style="border-top:1px solid #eee;margin-top:36px;padding-top:16px;font-size:12px;color:#ccc;text-align:center;line-height:2.0;">

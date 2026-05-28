@@ -115,9 +115,11 @@ def save_word_report(report_data: dict):
     doc.add_paragraph()
     add_section("二、过去一个月主要政策动向", report_data.get("policies_1month", []))
     doc.add_paragraph()
+    add_section("三、今年以来主要政策", report_data.get("policies_year", []))
+    doc.add_paragraph()
 
     # ── 趋势 ──
-    h = doc.add_heading("三、未来趋势判断", level=1)
+    h = doc.add_heading("四、未来趋势判断", level=1)
     h.runs[0].font.color.rgb = RGBColor(91, 109, 228)
     h.runs[0].font.size = Pt(14)
 
