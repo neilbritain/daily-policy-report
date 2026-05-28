@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-每日政策报告生成脚本 v3.2
-搜索引擎抓取 + DeepSeek API 生成真实内容
-覆盖主题：算力、人工智能、数据、算法、网络、信息化、数字化
+每日政策报告生成脚本 v3.8
+DuckDuckGo + Bing + 12个官网抓取 + DeepSeek API
+覆盖：算力/AI/数据/算法/网络/信息化/数字化，允许知识库补充兜底
 """
 import os
 import json
@@ -39,155 +39,300 @@ def safe_print(msg: str):
         print(msg.encode("ascii", "replace").decode("ascii"), flush=True)
 
 
-def search_duckduckgo(query: str, max_results: int = 6) -> str:
-    """DuckDuckGo HTML 搜索（无需 API Key）"""
-    if not HAS_BS4:
-        return f"[bs4 未安装，跳过搜索: {query}]"
+import urllib.parse
 
-    import urllib.parse
+
+def _html_get(url: str, timeout: int = 20, encoding: str = None) -> "BeautifulSoup | None":
+    """通用 HTTP GET，返回 BeautifulSoup 对象，失败返回 None"""
     headers = {
         "User-Agent": (
-            "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 "
-            "Chrome/122.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.9",
+        "Accept-Language": "zh-CN,zh;q=0.9,en;q=0.8",
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=timeout)
+        r.encoding = encoding or r.apparent_encoding or "utf-8"
+        return BeautifulSoup(r.text, "html.parser")
+    except Exception as e:
+        safe_print(f"    [warn] GET 失败 {url[:60]}: {e}")
+        return None
+
+
+def search_duckduckgo(query: str, max_results: int = 8) -> str:
+    """DuckDuckGo HTML 搜索"""
+    if not HAS_BS4:
+        return f"[bs4 未安装: {query}]"
+    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}&kl=cn-zh"
+    soup = _html_get(url)
+    if not soup:
+        return "(搜索失败)"
+    items = []
+    for div in soup.select(".result")[:max_results]:
+        t = div.select_one(".result__a")
+        s = div.select_one(".result__snippet")
+        u = div.select_one(".result__url")
+        if t:
+            items.append(
+                f"· {t.get_text(strip=True)}\n"
+                f"  {u.get_text(strip=True) if u else ''}\n"
+                f"  {s.get_text(strip=True) if s else ''}"
+            )
+    return "\n\n".join(items) if items else "(未找到结果)"
+
+
+def search_bing(query: str, max_results: int = 8) -> str:
+    """Bing 搜索（中文，补充 DuckDuckGo 盲区）"""
+    if not HAS_BS4:
+        return ""
+    url = f"https://www.bing.com/search?q={urllib.parse.quote(query)}&setlang=zh-CN&cc=CN"
+    soup = _html_get(url)
+    if not soup:
+        return "(Bing 搜索失败)"
+    items = []
+    for li in soup.select("li.b_algo")[:max_results]:
+        h2 = li.select_one("h2 a")
+        cap = li.select_one(".b_caption p")
+        if h2:
+            items.append(
+                f"· {h2.get_text(strip=True)}\n"
+                f"  {h2.get('href','')}\n"
+                f"  {cap.get_text(strip=True) if cap else ''}"
+            )
+    return "\n\n".join(items) if items else "(Bing 未找到结果)"
+
+
+def _resolve_url(redirect_url: str, timeout: int = 10) -> str:
+    """跟随跳转链接，返回真实目标 URL"""
+    try:
+        r = requests.head(redirect_url, allow_redirects=True, timeout=timeout,
+                          headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"})
+        return r.url
+    except Exception:
+        return redirect_url
+
+
+def _scrape_page_excerpt(url: str, max_chars: int = 500) -> str:
+    """抓取目标页面正文前 max_chars 字（提取日期和摘要用）"""
+    try:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+            "Accept-Language": "zh-CN,zh;q=0.9",
+        }
+        r = requests.get(url, headers=headers, timeout=15)
+        r.encoding = r.apparent_encoding or "utf-8"
+        soup = BeautifulSoup(r.text, "html.parser")
+        # 移除脚本/样式
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ", strip=True)
+        # 取前 max_chars 字
+        return text[:max_chars].replace("\n", " ")
+    except Exception:
+        return ""
+
+
+def search_baidu(query: str, max_results: int = 8, resolve_links: int = 5) -> str:
+    """百度搜索 + 自动解析跳转链接获取真实URL和摘要"""
+    if not HAS_BS4:
+        return ""
+    url = f"https://www.baidu.com/s?wd={urllib.parse.quote(query)}&rn={max_results}"
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "Chrome/124.0.0.0 Safari/537.36"
         ),
         "Accept-Language": "zh-CN,zh;q=0.9",
+        "Accept": "text/html,application/xhtml+xml,*/*;q=0.9",
+        "Referer": "https://www.baidu.com/",
     }
-    url = f"https://html.duckduckgo.com/html/?q={urllib.parse.quote(query)}&kl=cn-zh"
     try:
         r = requests.get(url, headers=headers, timeout=20)
+        r.encoding = "utf-8"
         soup = BeautifulSoup(r.text, "html.parser")
+        raw_items = []
+        for div in soup.select("div.result,div[class*='result-op']")[:max_results]:
+            title_a = div.select_one("h3 a") or div.select_one("a[data-click]")
+            # 尝试多个 snippet 选择器
+            snippet_el = (div.select_one("div.c-abstract")
+                          or div.select_one("[class*='abstract']")
+                          or div.select_one("[class*='content']"))
+            if title_a:
+                raw_items.append({
+                    "title": title_a.get_text(strip=True),
+                    "href":  title_a.get("href", ""),
+                    "snippet": snippet_el.get_text(strip=True) if snippet_el else "",
+                })
+
         items = []
-        for div in soup.select(".result")[:max_results]:
-            title = div.select_one(".result__a")
-            snippet = div.select_one(".result__snippet")
-            link = div.select_one(".result__url")
-            if title:
-                t = title.get_text(strip=True)
-                s = snippet.get_text(strip=True) if snippet else ""
-                u = link.get_text(strip=True) if link else ""
-                items.append(f"· {t}\n  {u}\n  {s}")
-        return "\n\n".join(items) if items else "(未找到结果)"
+        for idx, item in enumerate(raw_items):
+            title   = item["title"]
+            href    = item["href"]
+            snippet = item["snippet"]
+
+            # 对前 resolve_links 条跟随跳转，获取真实URL + 页面摘要
+            if idx < resolve_links and href.startswith("http://www.baidu.com/link"):
+                real_url = _resolve_url(href)
+                if not snippet:
+                    snippet = _scrape_page_excerpt(real_url, 400)
+                href = real_url
+                time.sleep(0.5)
+
+            items.append(
+                f"· {title}\n"
+                f"  {href}\n"
+                f"  {snippet[:300] if snippet else '（无摘要）'}"
+            )
+        return "\n\n".join(items) if items else "(百度未找到结果)"
     except Exception as e:
-        return f"(搜索异常: {e})"
+        return f"(百度搜索异常: {e})"
 
 
-def scrape_gov_news(today: datetime) -> str:
-    """抓取主要政府官网新闻列表"""
+def scrape_gov_sites() -> str:
+    """直接抓取 12 个核心政府 / 官方媒体网站的最新政策列表"""
     if not HAS_BS4:
         return ""
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; PolicyMonitor/3.0)",
-        "Accept": "text/html,application/xhtml+xml",
-        "Accept-Language": "zh-CN,zh;q=0.9",
-    }
+    POL_KW = ("通知", "规定", "办法", "方案", "意见", "规划", "条例", "政策",
+              "标准", "指南", "指导", "部署", "行动", "要求", "管理")
+
     sources = [
-        {
-            "name": "国家数据局",
-            "url": "https://www.nda.gov.cn/sjj/zcfg/",
-            "base": "https://www.nda.gov.cn",
-        },
-        {
-            "name": "工业和信息化部",
-            "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/index.html",
-            "base": "https://www.miit.gov.cn",
-        },
-        {
-            "name": "国家互联网信息办公室",
-            "url": "https://www.cac.gov.cn/hjlyj/index.htm",
-            "base": "https://www.cac.gov.cn",
-        },
+        # 国家级部委——政策文件专区
+        {"name": "国家数据局-政策法规",   "url": "https://www.nda.gov.cn/sjj/zcfg/",                       "base": "https://www.nda.gov.cn"},
+        {"name": "工信部-文件发布",        "url": "https://www.miit.gov.cn/zwgk/zcwj/wjfb/",               "base": "https://www.miit.gov.cn"},
+        {"name": "网信办-政策法规",        "url": "https://www.cac.gov.cn/hjlyj/",                          "base": "https://www.cac.gov.cn"},
+        {"name": "工信部-信息化司",        "url": "https://www.miit.gov.cn/jgsj/xxjss/gzdt/",              "base": "https://www.miit.gov.cn"},
+        {"name": "工信部-大数据司",        "url": "https://www.miit.gov.cn/jgsj/dsjs/gzdt/",               "base": "https://www.miit.gov.cn"},
+        {"name": "发改委-高技术",          "url": "https://www.ndrc.gov.cn/fggz/gjscy/",                   "base": "https://www.ndrc.gov.cn"},
+        {"name": "国务院-数字政府",        "url": "https://www.gov.cn/zhengce/shuzizf/",                   "base": "https://www.gov.cn"},
+        {"name": "科技部-政策",            "url": "https://www.most.gov.cn/xxgk/xinxifenlei/fdzdgknr/fgzc/zcfg/", "base": "https://www.most.gov.cn"},
+        # 专项数字经济/数据政策渠道
+        {"name": "新华网-科技",            "url": "https://www.xinhuanet.com/tech/",                       "base": "https://www.xinhuanet.com"},
+        {"name": "人民网-IT",              "url": "http://it.people.com.cn/",                              "base": "http://it.people.com.cn"},
+        {"name": "中国信通院动态",         "url": "http://www.caict.ac.cn/xwdt/gndt/",                     "base": "http://www.caict.ac.cn"},
+        {"name": "工业互联网产业联盟",     "url": "https://www.aii-alliance.org/index/c188/",              "base": "https://www.aii-alliance.org"},
     ]
+
     results = []
-    keywords = ("通知", "规定", "办法", "方案", "意见", "规划", "条例", "政策", "标准")
     for src in sources:
-        try:
-            r = requests.get(src["url"], headers=headers, timeout=15)
-            r.encoding = r.apparent_encoding or "utf-8"
-            soup = BeautifulSoup(r.text, "html.parser")
-            items = []
-            for a in soup.find_all("a", href=True):
-                text = a.get_text(strip=True)
-                href = a["href"]
-                if len(text) > 8 and any(kw in text for kw in keywords):
-                    if href.startswith("/"):
-                        href = src["base"] + href
-                    items.append(f"  - {text} | {href}")
-            if items:
-                results.append(f"【{src['name']}】\n" + "\n".join(items[:8]))
-        except Exception as e:
-            results.append(f"【{src['name']}】抓取失败: {e}")
+        soup = _html_get(src["url"], timeout=15)
+        if not soup:
+            continue
+        items = []
+        for a in soup.find_all("a", href=True):
+            text = a.get_text(strip=True)
+            href = a["href"]
+            if len(text) > 8 and any(kw in text for kw in POL_KW):
+                if href.startswith("/"):
+                    href = src["base"] + href
+                elif not href.startswith("http"):
+                    continue
+                items.append(f"  - {text} | {href}")
+        if items:
+            results.append(f"【{src['name']}】\n" + "\n".join(items[:10]))
+
     return "\n\n".join(results)
 
 
 def collect_all_data(today: datetime) -> str:
-    """汇总所有搜索和抓取结果"""
-    ym = today.strftime("%Y年%m月")
+    """汇总所有搜索和抓取结果（扩展版：DuckDuckGo + Bing + 12 个官网）"""
+    ym  = today.strftime("%Y年%m月")
     ymd = today.strftime("%Y年%m月%d日")
 
-    # 多关键词搜索，覆盖：算力、人工智能、数据、算法、网络、信息化、数字化
-    queries = [
-        f"国务院 国家数据局 工信部 网信办 最新政策通知 {ym}",
-        f"算力 算力网络 东数西算 算力基础设施 政策 {ym}",
-        f"人工智能 大模型 生成式AI 监管 政策 {ym}",
-        f"数据要素 数据安全 数据治理 数据资产 政策 {ym}",
-        f"算法治理 算法推荐 算法备案 规定 {ym}",
-        f"网络安全 等级保护 关键信息基础设施 政策 {ym}",
-        f"信息化 数字政府 数字中国 政务数据 {ym}",
-        f"数字化转型 工业互联网 数字经济 政策 {ym}",
-        f"site:gov.cn 通知 规定 办法 {ym}",
+    # ── 搜索查询 ──
+    ddg_queries = [
+        "国务院 国家数据局 工信部 网信办 最新政策通知",
+        "算力 算力网络 东数西算 算力枢纽 政策",
+        "人工智能 大模型 生成式AI 监管 最新",
+        "数据要素 数据安全 数据治理 数据资产 新规",
+        "网络安全 等级保护 关键信息基础设施 最新规定",
+        "数字政府 数字中国 信息化 政策",
+        "数字化转型 工业互联网 数字经济 政策",
+    ]
+    bing_queries = [
+        f"数据要素 算力 人工智能 政策 {ym} site:gov.cn",
+        f"网络安全 信息化 数字化 规定 通知 {ym}",
+        f"工业互联网 数字经济 算法 政策 {ym}",
+    ]
+    baidu_queries = [
+        f"国家数据局 工信部 网信办 最新政策 {ym}",
+        f"算力 人工智能 数据安全 政策文件 {ym} site:gov.cn",
+        f"数字化转型 工业互联网 信息化 最新规定 {ym}",
+        f"网络安全 数据要素 算法治理 通知 {ym}",
     ]
 
-    parts = [f"今天是 {ymd}。\n"]
+    parts = [f"今天是 {ymd}。以下为多渠道采集的原始政策信息：\n"]
 
-    safe_print("  >搜索政策关键词...")
-    for i, q in enumerate(queries, 1):
-        safe_print(f"    [{i}/{len(queries)}] {q[:50]}")
-        result = search_duckduckgo(q)
-        parts.append(f"── 搜索「{q[:40]}」──\n{result}")
+    safe_print("  >[1] DuckDuckGo 搜索...")
+    for i, q in enumerate(ddg_queries, 1):
+        safe_print(f"    [{i}/{len(ddg_queries)}] {q[:50]}")
+        parts.append(f"── DDG「{q[:45]}」──\n{search_duckduckgo(q)}")
+        time.sleep(1.5)
+
+    safe_print("  >[2] Bing 搜索...")
+    for i, q in enumerate(bing_queries, 1):
+        safe_print(f"    [{i}/{len(bing_queries)}] {q[:50]}")
+        parts.append(f"── Bing「{q[:45]}」──\n{search_bing(q)}")
+        time.sleep(1.5)
+
+    safe_print("  >[3] 百度搜索...")
+    for i, q in enumerate(baidu_queries, 1):
+        safe_print(f"    [{i}/{len(baidu_queries)}] {q[:50]}")
+        parts.append(f"── 百度「{q[:45]}」──\n{search_baidu(q)}")
         time.sleep(2)
 
-    safe_print("  >抓取政府官网...")
-    gov_text = scrape_gov_news(today)
+    safe_print("  >[4] 抓取政府官网 / 官媒...")
+    gov_text = scrape_gov_sites()
     if gov_text:
-        parts.append(f"── 官网抓取 ──\n{gov_text}")
+        parts.append(f"── 官网直接抓取 ──\n{gov_text}")
+    else:
+        parts.append("── 官网直接抓取 ── (均无响应或无匹配条目)")
 
-    return "\n\n".join(parts)
+    # 保存原始数据供调试
+    raw = "\n\n".join(parts)
+    try:
+        debug_path = Path("reports") / f"raw_data_{today.strftime('%Y-%m-%d')}.txt"
+        debug_path.write_text(raw, encoding="utf-8")
+        safe_print(f"  [debug] 原始数据已保存: {debug_path}")
+    except Exception:
+        pass
+
+    return raw
 
 
 # ──────────────────────────────────────────────
 # 2. Claude API 生成报告
 # ──────────────────────────────────────────────
 
-REPORT_PROMPT = """你是一名严谨的政策分析助手，今天是 {date_str}。
+REPORT_PROMPT = """你是一名专注于中国政府政策的分析助手，今天是 {date_str}。
 
-以下是从网络搜索到的原始数据：
+以下是从 DuckDuckGo、Bing 及多个政府官网采集的原始数据：
 
 {raw_data}
 
-━━━ 收录范围 ━━━
-以下主题均可纳入（不限于）：
-算力 · 人工智能 · 数据要素 · 数据安全 · 算法治理 · 网络安全 · 信息化 · 数字化转型 · 数字政府 · 数字经济 · 工业互联网 · 5G · 物联网 · 区块链 · 智能计算 · 绿色算力
+━━━ 收录范围（必须与以下主题之一相关，否则排除）━━━
+算力 · 智能计算 · 东数西算 · 算力枢纽 · 人工智能 · 大模型 · 生成式AI · 机器学习 · 数据要素 · 数据安全 · 数据治理 · 数据资产 · 数据跨境 · 算法治理 · 网络安全 · 等级保护 · 关键信息基础设施 · 信息化 · 数字政府 · 数字中国 · 数字经济 · 数字化转型 · 工业互联网 · 5G · 绿色算力 · 区块链 · 物联网 · 平台经济 · 隐私计算 · 云计算 · 大数据
 
-━━━ 真实性要求（违反则整条删除）━━━
+不属于上述主题的政策（如民政、教育、农业、医疗、社保、劳动等）一律不收录。
 
-【真实性】
-- 只能收录搜索数据中明确出现的政策，禁止根据"常识"或"推断"补充任何未在搜索结果中出现的政策
-- 文件字号（如"国办发〔2026〕15号"）必须来自搜索结果原文，搜索结果未提及字号时，doc_number 填"暂无"，禁止编造
-- 发文日期必须来自搜索结果，搜索结果未明确日期时，date 填报告日期 {date_str}，禁止推算或捏造
+━━━ 内容来源优先级 ━━━
 
-【时效性】
-- policies_24h：仅收录发布日期在 {date_3d_ago} 之后的政策（即近 3 天内）
-- policies_1month：仅收录发布日期在 {date_30d_ago} 之后的政策（即近 30 天内）
-- 日期早于上述范围的政策一律移除，不得填入
+【第一优先】搜索结果和官网抓取中明确出现的政策（标题、字号、日期均来自原始数据）
+【第二优先】你已知的、在 {date_str} 前已公开发布的真实政策文件（知识库补充，date 填实际发布日期；doc_number 如不确定则填"暂无"）
+【禁止】编造不存在的政策标题、虚构文件字号、捏造发布日期
 
-【URL】
-- 能找到来源链接则填写，找不到一律填空字符串 ""，禁止填写推测性链接
+━━━ 准确性要求 ━━━
+- 文件字号（如"国办发〔2026〕15号"）：来源原文有则填写，不确定则填"暂无"
+- 发布日期：来源有明确日期则用，否则根据你对该政策的了解填写，实在不确定填 {date_str}
+- URL：有真实链接则填，没有一律填空字符串 ""，禁止填推测性链接
+- summary：客观概括核心内容，50 字以内，不得添加无根据的推断
 
-【数量】
-- policies_24h：3~6 条（搜索结果不足时可少于 6 条，禁止凑数）
-- policies_1month：3~6 条（同上）
-- trends：基于已收录政策客观分析，共 6 条，每条 80 字以内
+━━━ 时效性要求 ━━━
+- policies_24h：优先收录 {date_3d_ago} 之后发布的政策（近 3 天）；搜索无近期结果时，可放宽至近 30 天内最重要的政策
+- policies_1month：收录 {date_30d_ago} 之后发布的政策（近 30 天）；超过 60 天的条目一律不收录
+- 两个分区均要求 4~6 条；如确实找不到足够的本领域政策，宁可少于 4 条，也不得用无关领域或过期内容凑数
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -196,18 +341,18 @@ REPORT_PROMPT = """你是一名严谨的政策分析助手，今天是 {date_str
   "policies_24h": [
     {{
       "title": "政策标题（不含书名号）",
-      "doc_number": "发文字号（来源中无字号则填暂无）",
+      "doc_number": "发文字号（不确定填暂无）",
       "institution": "发布机构全称",
       "date": "YYYY-MM-DD",
       "url": "官方来源链接（无则填空字符串）",
-      "summary": "核心内容摘要，50 字以内，不得虚构"
+      "summary": "核心内容摘要，50 字以内"
     }}
   ],
   "policies_1month": [
     {{ 同上格式 }}
   ],
   "trends": [
-    "趋势 1：基于已收录政策的客观判断",
+    "趋势 1：基于已收录政策的客观判断（80字以内）",
     "趋势 2：", "趋势 3：", "趋势 4：", "趋势 5：", "趋势 6："
   ]
 }}"""
@@ -259,17 +404,22 @@ def call_llm_api(raw_data: str, today: datetime) -> dict:
     data["date"] = today.strftime("%Y-%m-%d")
     data["title"] = "数据和信息化政策日报"
 
-    # ── 后处理：自动清理超期 / 日期异常条目 ──
-    data = _validate_dates(data, today)
+    # ── 后处理 ──
+    data = _validate_dates(data, today)   # 1. 日期校验 + 自动归类
+    data = _filter_by_topic(data)         # 2. 主题硬过滤
+    data = _resolve_baidu_urls(data)      # 3. 解析 Baidu 跳转链接
     return data
 
 
 def _validate_dates(data: dict, today: datetime) -> dict:
     """
-    日期校验：只删除明确超前（日期在今天之后）的条目，其余只打警告不删除。
-    算力、AI、数据、算法、网络、信息化、数字化等相关政策均可纳入，不做时效截断。
+    日期校验 + 自动归类：
+    - 未来日期 → 移除
+    - policies_24h 中超过 5 天的条目 → 自动移入 policies_1month
+    - policies_1month 中超过 60 天的条目 → 移除
     """
     today_date = today.date()
+    overflow_to_1month = []   # 从 policies_24h 溢出的条目
 
     for key in ("policies_24h", "policies_1month"):
         original = data.get(key, [])
@@ -279,27 +429,82 @@ def _validate_dates(data: dict, today: datetime) -> dict:
             try:
                 pub = datetime.strptime(raw_date, "%Y-%m-%d").date()
             except ValueError:
-                # 日期格式错误 → 用报告日期兜底，保留条目
-                safe_print(f"  [warn] 日期格式异常，已修正为今天: {p.get('title','?')}")
+                safe_print(f"  [warn] 日期格式异常，修正为今天: {p.get('title','?')[:35]}")
                 p["date"] = today.strftime("%Y-%m-%d")
                 cleaned.append(p)
                 continue
 
             if pub > today_date:
-                # 未来日期 → 唯一真正删除的情况
-                safe_print(f"  [!] 日期超前，已移除: {p.get('title','?')} | {raw_date}")
+                safe_print(f"  [!] 日期超前，移除: {p.get('title','?')[:35]} | {raw_date}")
                 continue
 
             days_ago = (today_date - pub).days
-            if key == "policies_24h" and days_ago > 14:
-                safe_print(f"  [warn] {key} 条目距今 {days_ago} 天，建议核查: {p.get('title','?')}")
-            elif key == "policies_1month" and days_ago > 60:
-                safe_print(f"  [warn] {key} 条目距今 {days_ago} 天，建议核查: {p.get('title','?')}")
 
-            cleaned.append(p)   # 只警告，不删除
+            if key == "policies_24h" and days_ago > 5:
+                # 超过5天 → 移入 policies_1month（不删）
+                safe_print(f"  [move] 24h→1month ({days_ago}天): {p.get('title','?')[:35]}")
+                overflow_to_1month.append(p)
+                continue
+
+            if key == "policies_1month" and days_ago > 60:
+                safe_print(f"  [!] 超期移除 ({days_ago}天): {p.get('title','?')[:35]}")
+                continue
+
+            cleaned.append(p)
 
         data[key] = cleaned
 
+    # 合并溢出条目到 policies_1month（去重）
+    existing_titles = {p["title"] for p in data.get("policies_1month", [])}
+    for p in overflow_to_1month:
+        if p["title"] not in existing_titles:
+            data["policies_1month"].append(p)
+            existing_titles.add(p["title"])
+
+    return data
+
+
+# 主题关键词白名单（标题或摘要含其中之一才保留）
+TOPIC_KEYWORDS = (
+    "算力", "智能计算", "东数西算", "数据中心",
+    "人工智能", "大模型", "生成式", "机器学习", "深度学习", "AI",
+    "数据要素", "数据安全", "数据治理", "数据资产", "数据跨境", "数据共享",
+    "数字经济", "数字化", "数字政府", "数字中国",
+    "信息化", "信息安全", "信息技术",
+    "网络安全", "等级保护", "关键信息基础设施",
+    "工业互联网", "互联网平台", "5G", "物联网", "云计算",
+    "算法", "区块链", "隐私计算",
+)
+
+
+def _filter_by_topic(data: dict) -> dict:
+    """Python 层硬过滤：标题和摘要均不含主题关键词的条目直接移除"""
+    for key in ("policies_24h", "policies_1month"):
+        original = data.get(key, [])
+        filtered = []
+        for p in original:
+            text = p.get("title", "") + p.get("summary", "")
+            if any(kw in text for kw in TOPIC_KEYWORDS):
+                filtered.append(p)
+            else:
+                safe_print(f"  [skip] 主题不符，已过滤: {p.get('title','?')[:40]}")
+        data[key] = filtered
+    return data
+
+
+def _resolve_baidu_urls(data: dict) -> dict:
+    """把 JSON 中残留的 baidu.com/link 跳转链接解析为真实目标 URL"""
+    for key in ("policies_24h", "policies_1month"):
+        for p in data.get(key, []):
+            url = p.get("url", "")
+            if url and "baidu.com/link" in url:
+                real = _resolve_url(url)
+                if real != url and "baidu.com" not in real:
+                    p["url"] = real
+                    safe_print(f"  [url] 已解析: {real[:70]}")
+                else:
+                    # 无法解析 → 清空（不留无效链接）
+                    p["url"] = ""
     return data
 
 
