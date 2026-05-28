@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-每日政策报告生成脚本 v3.1
+每日政策报告生成脚本 v3.2
 搜索引擎抓取 + DeepSeek API 生成真实内容
+覆盖主题：算力、人工智能、数据、算法、网络、信息化、数字化
 """
 import os
 import json
@@ -124,12 +125,17 @@ def collect_all_data(today: datetime) -> str:
     ym = today.strftime("%Y年%m月")
     ymd = today.strftime("%Y年%m月%d日")
 
-    # 多关键词搜索
+    # 多关键词搜索，覆盖：算力、人工智能、数据、算法、网络、信息化、数字化
     queries = [
         f"国务院 国家数据局 工信部 网信办 最新政策通知 {ym}",
-        f"算力网络 数据要素 网络安全 新规 {ym}",
-        f"数字政府 信息化建设 数据治理 政策 {ym}",
-        f"site:gov.cn 数据 算力 通知 {ym}",
+        f"算力 算力网络 东数西算 算力基础设施 政策 {ym}",
+        f"人工智能 大模型 生成式AI 监管 政策 {ym}",
+        f"数据要素 数据安全 数据治理 数据资产 政策 {ym}",
+        f"算法治理 算法推荐 算法备案 规定 {ym}",
+        f"网络安全 等级保护 关键信息基础设施 政策 {ym}",
+        f"信息化 数字政府 数字中国 政务数据 {ym}",
+        f"数字化转型 工业互联网 数字经济 政策 {ym}",
+        f"site:gov.cn 通知 规定 办法 {ym}",
     ]
 
     parts = [f"今天是 {ymd}。\n"]
@@ -159,7 +165,11 @@ REPORT_PROMPT = """你是一名严谨的政策分析助手，今天是 {date_str
 
 {raw_data}
 
-━━━ 严格要求（违反则整条删除，不得保留）━━━
+━━━ 收录范围 ━━━
+以下主题均可纳入（不限于）：
+算力 · 人工智能 · 数据要素 · 数据安全 · 算法治理 · 网络安全 · 信息化 · 数字化转型 · 数字政府 · 数字经济 · 工业互联网 · 5G · 物联网 · 区块链 · 智能计算 · 绿色算力
+
+━━━ 真实性要求（违反则整条删除）━━━
 
 【真实性】
 - 只能收录搜索数据中明确出现的政策，禁止根据"常识"或"推断"补充任何未在搜索结果中出现的政策
@@ -256,16 +266,12 @@ def call_llm_api(raw_data: str, today: datetime) -> dict:
 
 def _validate_dates(data: dict, today: datetime) -> dict:
     """
-    校验每条政策的日期合理性。
-    自动移除日期超前或超期的条目，控制台打印警告供人工核查。
+    日期校验：只删除明确超前（日期在今天之后）的条目，其余只打警告不删除。
+    算力、AI、数据、算法、网络、信息化、数字化等相关政策均可纳入，不做时效截断。
     """
-    cutoffs = {
-        "policies_24h":    timedelta(days=5),   # 宽松到 5 天（搜索有延迟）
-        "policies_1month": timedelta(days=35),  # 宽松到 35 天
-    }
     today_date = today.date()
 
-    for key, max_delta in cutoffs.items():
+    for key in ("policies_24h", "policies_1month"):
         original = data.get(key, [])
         cleaned = []
         for p in original:
@@ -273,21 +279,25 @@ def _validate_dates(data: dict, today: datetime) -> dict:
             try:
                 pub = datetime.strptime(raw_date, "%Y-%m-%d").date()
             except ValueError:
-                safe_print(f"  [!] 日期格式异常，已移除: {p.get('title','?')} | date={raw_date}")
+                # 日期格式错误 → 用报告日期兜底，保留条目
+                safe_print(f"  [warn] 日期格式异常，已修正为今天: {p.get('title','?')}")
+                p["date"] = today.strftime("%Y-%m-%d")
+                cleaned.append(p)
                 continue
-            if pub > today_date:
-                safe_print(f"  [!] 日期超前，已移除: {p.get('title','?')} | date={raw_date}")
-                continue
-            days_ago = (today_date - pub).days
-            if days_ago > max_delta.days:
-                safe_print(f"  [!] 日期超期({days_ago}天>限{max_delta.days}天)，已移除: "
-                           f"{p.get('title','?')} | date={raw_date}")
-                continue
-            cleaned.append(p)
 
-        removed = len(original) - len(cleaned)
-        if removed:
-            safe_print(f"  [校验] {key}: 移除 {removed} 条，保留 {len(cleaned)} 条")
+            if pub > today_date:
+                # 未来日期 → 唯一真正删除的情况
+                safe_print(f"  [!] 日期超前，已移除: {p.get('title','?')} | {raw_date}")
+                continue
+
+            days_ago = (today_date - pub).days
+            if key == "policies_24h" and days_ago > 14:
+                safe_print(f"  [warn] {key} 条目距今 {days_ago} 天，建议核查: {p.get('title','?')}")
+            elif key == "policies_1month" and days_ago > 60:
+                safe_print(f"  [warn] {key} 条目距今 {days_ago} 天，建议核查: {p.get('title','?')}")
+
+            cleaned.append(p)   # 只警告，不删除
+
         data[key] = cleaned
 
     return data
@@ -345,26 +355,6 @@ def _call_anthropic(api_key: str, prompt: str) -> str:
             if attempt == 2:
                 raise
             time.sleep(5)
-
-    # 提取 JSON（去掉 markdown 代码块包裹）
-    m = re.search(r"```json\s*(.*?)\s*```", text, re.DOTALL)
-    if m:
-        text = m.group(1)
-    else:
-        m = re.search(r"```\s*(.*?)\s*```", text, re.DOTALL)
-        if m:
-            text = m.group(1)
-
-    # 截取最外层 { }
-    start = text.find("{")
-    end = text.rfind("}") + 1
-    if 0 <= start < end:
-        text = text[start:end]
-
-    data = json.loads(text)
-    data["date"] = today.strftime("%Y-%m-%d")
-    data["title"] = "数据和信息化政策日报"
-    return data
 
 
 # ──────────────────────────────────────────────
