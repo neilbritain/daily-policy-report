@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-每日政策报告生成脚本 v4.0
-DuckDuckGo + Bing + 百度 + 12个官网抓取 + DeepSeek API
+每日政策报告生成脚本 v4.1
+DuckDuckGo + Bing + 百度 + 17个官网抓取 + DeepSeek API
 覆盖：算力/AI/数据/算法/网络/信息化/数字化
 地理范围：全国 + 辽宁/江苏/上海/广东/浙江重点省份 + 日美欧国际
+v4.1：扩大搜索量（条目翻倍），趋势分析升级为深度研判（现象+逻辑+研判）
 """
 import os
 import json
@@ -62,7 +63,7 @@ def _html_get(url: str, timeout: int = 20, encoding: str = None) -> "BeautifulSo
         return None
 
 
-def search_duckduckgo(query: str, max_results: int = 8) -> str:
+def search_duckduckgo(query: str, max_results: int = 12) -> str:
     """DuckDuckGo HTML 搜索"""
     if not HAS_BS4:
         return f"[bs4 未安装: {query}]"
@@ -84,7 +85,7 @@ def search_duckduckgo(query: str, max_results: int = 8) -> str:
     return "\n\n".join(items) if items else "(未找到结果)"
 
 
-def search_bing(query: str, max_results: int = 8) -> str:
+def search_bing(query: str, max_results: int = 12) -> str:
     """Bing 搜索（中文，补充 DuckDuckGo 盲区）"""
     if not HAS_BS4:
         return ""
@@ -135,7 +136,7 @@ def _scrape_page_excerpt(url: str, max_chars: int = 500) -> str:
         return ""
 
 
-def search_baidu(query: str, max_results: int = 8, resolve_links: int = 5) -> str:
+def search_baidu(query: str, max_results: int = 12, resolve_links: int = 5) -> str:
     """百度搜索 + 自动解析跳转链接获取真实URL和摘要"""
     if not HAS_BS4:
         return ""
@@ -214,6 +215,12 @@ def scrape_gov_sites() -> str:
         {"name": "人民网-IT",              "url": "http://it.people.com.cn/",                              "base": "http://it.people.com.cn"},
         {"name": "中国信通院动态",         "url": "http://www.caict.ac.cn/xwdt/gndt/",                     "base": "http://www.caict.ac.cn"},
         {"name": "工业互联网产业联盟",     "url": "https://www.aii-alliance.org/index/c188/",              "base": "https://www.aii-alliance.org"},
+        # 重点省市数据局 / 经信部门
+        {"name": "辽宁省数据局",           "url": "https://sjj.ln.gov.cn/sjj/zwgk/zcwj/",                  "base": "https://sjj.ln.gov.cn"},
+        {"name": "江苏省大数据管理中心",   "url": "http://bigdata.jiangsu.gov.cn/",                        "base": "http://bigdata.jiangsu.gov.cn"},
+        {"name": "上海市经信委",           "url": "https://www.sheitc.sh.gov.cn/zcwj/",                    "base": "https://www.sheitc.sh.gov.cn"},
+        {"name": "广东省政务数据局",       "url": "http://gdsj.gd.gov.cn/zwgk/zcfg/",                      "base": "http://gdsj.gd.gov.cn"},
+        {"name": "浙江省数据局",           "url": "http://drc.zj.gov.cn/",                                 "base": "http://drc.zj.gov.cn"},
     ]
 
     results = []
@@ -232,7 +239,7 @@ def scrape_gov_sites() -> str:
                     continue
                 items.append(f"  - {text} | {href}")
         if items:
-            results.append(f"【{src['name']}】\n" + "\n".join(items[:10]))
+            results.append(f"【{src['name']}】\n" + "\n".join(items[:15]))
 
     return "\n\n".join(results)
 
@@ -353,15 +360,24 @@ REPORT_PROMPT = """你是一名政策分析助手，今天是 {date_str}，负�
 - url：有真实链接则填，否则填""，禁止填推测性链接
 - summary：客观概括，40 字以内，不虚构
 
-━━━ 时效性要求 ━━━
-- policies_24h：{date_3d_ago} 之后发布；无则放宽至近 14 天最重要政策；可含国际政策
-- policies_1month：{date_30d_ago} 之后；超过 60 天不收录；可含国际政策
-- policies_year：{date_year_start} 之后、{date_30d_ago} 之前（今年较重要的政策，避免与上方重复）；可含国际政策
-- 每栏 3~5 条；确实找不到则可少于 3 条，不得凑数
-- trends：基于所有收录政策做 6 条趋势判断，含国内外动向对比，每条 60 字以内
+━━━ 数量与时效要求（尽量多收录，宁多勿少）━━━
+- policies_24h：{date_3d_ago} 之后发布；无足够近期政策时放宽至近 14 天；目标 6~10 条
+- policies_1month：{date_30d_ago} 之后、超过 60 天不收录；目标 8~12 条
+- policies_year：{date_year_start} 之后、{date_30d_ago} 之前（今年重点政策，避免与上方重复）；目标 8~12 条
+- 三栏务必尽量填满：搜索结果不足时，用你已知的、该时段内真实发布的本领域政策补充（国内国际均可）
+- 每栏都要兼顾全国 + 重点省市 + 国际，不要只写国家级
+
+━━━ 趋势分析要求（重点，必须有深度）━━━
+trends 共 6 条，这是报告的核心价值所在，要体现专业判断力，不得敷衍罗列。每条 120~180 字，须包含三层：
+  ① 现象——指出一个具体的、可验证的政策动向（点名具体文件或机构动作）
+  ② 逻辑——分析其背后的政策意图、驱动因素或制度逻辑
+  ③ 研判——对下一步走向、影响或潜在问题作出有依据的预测或提示
+六条之间应有不同切入角度，例如：制度建设、技术路线、区域格局、产业影响、安全合规、国际比较。
+避免空话套话（如"持续推进""不断完善""日益重要"），每条都要有具体抓手和明确观点。
+国际比较一条须将中国做法与日/美/欧具体政策对照，指出异同与启示。
 
 ━━━ 字数控制 ━━━
-全报告（所有 summary + trends 文字合计）不超过 2000 字。
+政策摘要（summary）保持精炼（40字内）以腾出篇幅；趋势分析可充分展开。全报告控制在 3000 字以内。
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
@@ -381,8 +397,9 @@ REPORT_PROMPT = """你是一名政策分析助手，今天是 {date_str}，负�
   "policies_1month": [ {{ 同上格式 }} ],
   "policies_year":   [ {{ 同上格式 }} ],
   "trends": [
-    "趋势1：...", "趋势2：...", "趋势3：...",
-    "趋势4：...", "趋势5：...", "趋势6：..."
+    "趋势1（120~180字，含现象+逻辑+研判）：...",
+    "趋势2：...", "趋势3：...", "趋势4：...", "趋势5：...",
+    "趋势6（国际比较）：..."
   ]
 }}"""
 
@@ -499,15 +516,21 @@ def _validate_dates(data: dict, today: datetime) -> dict:
 
 
 # 主题关键词白名单（标题或摘要含其中之一才保留）
+# 采用宽口径词根，避免误删（如"数据出境""智能体""个人信息"等）
 TOPIC_KEYWORDS = (
-    "算力", "智能计算", "东数西算", "数据中心",
-    "人工智能", "大模型", "生成式", "机器学习", "深度学习", "AI",
-    "数据要素", "数据安全", "数据治理", "数据资产", "数据跨境", "数据共享",
-    "数字经济", "数字化", "数字政府", "数字中国",
-    "信息化", "信息安全", "信息技术",
-    "网络安全", "等级保护", "关键信息基础设施",
-    "工业互联网", "互联网平台", "5G", "物联网", "云计算",
-    "算法", "区块链", "隐私计算",
+    # 算力 / 计算
+    "算力", "智能计算", "东数西算", "数据中心", "云计算", "超算",
+    # 人工智能（智能 覆盖 智能体/智能化/人工智能）
+    "人工智能", "智能体", "智能", "大模型", "生成式", "机器学习", "深度学习", "AI",
+    # 数据（裸词覆盖 数据要素/数据出境/数据集/数据安全 等全部）
+    "数据", "数智",
+    # 数字（裸词覆盖 数字化/数字经济/数字政府/数字适老 等）
+    "数字",
+    # 信息化 / 网络
+    "信息化", "信息安全", "信息技术", "信息系统", "信息服务", "信息内容",
+    "网络安全", "等级保护", "关键信息基础设施", "互联网", "个人信息",
+    # 产业 / 技术
+    "工业互联网", "5G", "物联网", "区块链", "隐私计算", "算法", "平台经济",
 )
 
 
@@ -551,22 +574,23 @@ def _call_deepseek(api_key: str, prompt: str) -> str:
     payload = {
         "model": "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4096,
-        "temperature": 0.3,
+        "max_tokens": 8192,
+        "temperature": 0.4,
     }
-    for attempt in range(1, 3):
+    MAX_RETRY = 4
+    for attempt in range(1, MAX_RETRY + 1):
         try:
             resp = requests.post(
                 "https://api.deepseek.com/chat/completions",
-                headers=headers, json=payload, timeout=120,
+                headers=headers, json=payload, timeout=180,
             )
             resp.raise_for_status()
             return resp.json()["choices"][0]["message"]["content"].strip()
         except Exception as e:
-            safe_print(f"  [!] DeepSeek 调用失败（第 {attempt} 次）: {e}")
-            if attempt == 2:
+            safe_print(f"  [!] DeepSeek 调用失败（第 {attempt}/{MAX_RETRY} 次）: {e}")
+            if attempt == MAX_RETRY:
                 raise
-            time.sleep(5)
+            time.sleep(8 * attempt)   # 退避：8s/16s/24s
 
 
 def _call_anthropic(api_key: str, prompt: str) -> str:
@@ -578,7 +602,7 @@ def _call_anthropic(api_key: str, prompt: str) -> str:
     }
     payload = {
         "model": "claude-3-5-sonnet-20241022",
-        "max_tokens": 4096,
+        "max_tokens": 8192,
         "messages": [{"role": "user", "content": prompt}],
     }
     for attempt in range(1, 3):
