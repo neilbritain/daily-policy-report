@@ -28,9 +28,9 @@ try {
     }
     Log "API Key: OK"
 
-    # 拉取最新代码
+    # 拉取最新代码（冲突时以远程为准，避免自动化中断）
     Log "git pull..."
-    git pull --quiet
+    git pull --no-rebase -X theirs --quiet
     Log "git pull 完成"
 
     # 生成 HTML/JSON 报告
@@ -50,6 +50,11 @@ try {
         $date = Get-Date -Format "yyyy-MM-dd"
         git commit -m "[auto] $date 政策日报自动更新"
         git push
+        if ($LASTEXITCODE -ne 0) {
+            Log "push 被拒绝，拉取远程后重试..."
+            git pull --no-rebase -X ours --quiet
+            git push
+        }
         Log "已提交并推送: $changed"
     } else {
         Log "无新内容，跳过提交"
